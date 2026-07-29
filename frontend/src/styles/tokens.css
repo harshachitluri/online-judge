@@ -1,0 +1,286 @@
+/*
+ |==========================================================================
+ | AXIOM — Design Tokens
+ |==========================================================================
+ | The single source of truth for colour, type, space, radius, elevation and
+ | motion. Nothing below this file may invent a raw hex, a raw pixel spacing
+ | or a raw easing curve — everything references a token.
+ |
+ | Dark is the primary, designed mode. Light is a *selected* counterpart:
+ | every value is re-picked for the light surface, never algorithmically
+ | flipped. `[data-theme]` on <html> is stamped by ThemeContext and always
+ | beats the OS preference in both directions.
+ */
+
+:root {
+    color-scheme: dark;
+
+    /* ── Brand ───────────────────────────────────────────────────────── */
+    /* Violet is the identity hue; cyan is its accent partner. The pair
+       appears only as a gradient — never as two flat fills side by side. */
+    --brand-violet:      #7f6bf0;
+    --brand-violet-soft: #9c8ffa;
+    --brand-violet-deep: #5744c4;
+    --brand-cyan:        #22d3ee;
+    --brand-cyan-deep:   #0e9fb8;
+
+    --gradient-brand:  linear-gradient(120deg, #7f6bf0 0%, #22d3ee 100%);
+    --gradient-ember:  linear-gradient(120deg, #f0846b 0%, #eda100 100%);
+    --gradient-mesh:   radial-gradient(60% 55% at 12% 8%,  rgba(127,107,240,.30), transparent 68%),
+                       radial-gradient(50% 50% at 88% 4%,  rgba(34,211,238,.18),  transparent 66%),
+                       radial-gradient(70% 60% at 50% 108%, rgba(87,68,196,.24),  transparent 70%);
+
+    /* ── Surfaces ────────────────────────────────────────────────────── */
+    --plane:        #0a0b10;   /* the page itself */
+    --surface-1:    #141824;   /* cards, panels — the chart surface */
+    --surface-2:    #1b2030;   /* raised: inputs, table headers, popovers */
+    --surface-3:    #232941;   /* hover / pressed on surface-2 */
+    --surface-sunk: #0f121b;   /* wells: code blocks, console output */
+
+    /* Glass is a *material*, not a colour: a translucent surface plus blur.
+       Used only where something meaningful sits behind it (nav over content,
+       modal over page). Never on an opaque background — it just looks muddy. */
+    --glass-bg:     rgba(20, 24, 36, .62);
+    --glass-bd:     rgba(255, 255, 255, .09);
+    --glass-blur:   saturate(170%) blur(18px);
+
+    /* ── Ink ─────────────────────────────────────────────────────────── */
+    --text-primary:   #ffffff;
+    --text-secondary: #c3c2b7;
+    --text-muted:     #8a8fa3;
+    --text-faint:     #5d6479;
+    --text-on-brand:  #0a0b10;
+
+    /* ── Lines ───────────────────────────────────────────────────────── */
+    --border:        rgba(255, 255, 255, .10);
+    --border-strong: rgba(255, 255, 255, .18);
+    --border-focus:  var(--brand-violet-soft);
+    --gridline:      #2c2c2a;
+    --axis:          #383835;
+
+    /* ── Status (fixed — never themed, never reused as a series colour) ─
+       These four steps are deliberately distinct from the categorical
+       slots so a status colour can never impersonate a data series. Red
+       and green collide under deuteranopia by nature, so every status
+       mark ships with an icon *and* a text label — colour never carries
+       the meaning alone. */
+    --status-good:     #0ca30c;
+    --status-warning:  #fab219;
+    --status-serious:  #ec835a;
+    --status-critical: #d03b3b;
+    --status-info:     #3987e5;
+
+    --good-wash:     rgba(12, 163, 12, .12);
+    --warning-wash:  rgba(250, 178, 25, .12);
+    --serious-wash:  rgba(236, 131, 90, .12);
+    --critical-wash: rgba(208, 59, 59, .12);
+    --info-wash:     rgba(57, 135, 229, .12);
+    --brand-wash:    rgba(127, 107, 240, .13);
+
+    /* ── Categorical series (validated) ──────────────────────────────
+       Assigned in fixed slot order, never cycled. Only the first three
+       slots clear the all-pairs CVD gate on this surface, which is the
+       cap for scatter/cell forms; adjacent forms (stacks, bars, lines)
+       may use all six. A seventh series folds into "Other". */
+    --series-1: #3987e5;   /* blue    */
+    --series-2: #d95926;   /* orange  */
+    --series-3: #199e70;   /* aqua    */
+    --series-4: #c98500;   /* yellow  */
+    --series-5: #d55181;   /* magenta */
+    --series-6: #9085e9;   /* violet  */
+    --series-other: #6b7280;
+
+    /* ── Sequential ramp (violet, ordinal-validated on --surface-1) ──── */
+    --ramp-0: rgba(255, 255, 255, .045);  /* the "no activity" cell */
+    --ramp-1: #4b3aa8;
+    --ramp-2: #6a55d8;
+    --ramp-3: #7f6bf0;
+    --ramp-4: #9c8ffa;
+    --ramp-5: #c4bbfd;
+
+    /* ── Difficulty ──────────────────────────────────────────────────
+       Difficulty is an ordered severity, so it borrows the status
+       palette. Always rendered with its text label beside the colour. */
+    --diff-easy:   var(--status-good);
+    --diff-medium: var(--status-warning);
+    --diff-hard:   var(--status-critical);
+
+    /* ── Typography ──────────────────────────────────────────────────
+       One UI sans for everything including hero figures — no display or
+       serif face. One mono, used for code, IDs, and tabular figures. */
+    --font-sans: "Inter var", "Inter", system-ui, -apple-system, "Segoe UI",
+                 Roboto, "Helvetica Neue", sans-serif;
+    --font-mono: "JetBrains Mono", "SF Mono", ui-monospace, "Cascadia Code",
+                 "Fira Code", Menlo, Consolas, monospace;
+
+    /* A fifth-of-a-step modular scale, clamped so the whole system is
+       fluid between 360px and 1440px without a single media query. */
+    --fs-2xs:  0.6875rem;                              /* 11 */
+    --fs-xs:   0.75rem;                                /* 12 */
+    --fs-sm:   0.8125rem;                              /* 13 */
+    --fs-base: 0.875rem;                               /* 14 — UI default */
+    --fs-md:   1rem;                                   /* 16 — body copy   */
+    --fs-lg:   clamp(1.0625rem, 0.98rem + 0.4vw, 1.25rem);
+    --fs-xl:   clamp(1.25rem,  1.1rem  + 0.7vw, 1.625rem);
+    --fs-2xl:  clamp(1.625rem, 1.35rem + 1.3vw, 2.25rem);
+    --fs-3xl:  clamp(2rem,     1.5rem  + 2.4vw, 3rem);
+    --fs-4xl:  clamp(2.5rem,   1.6rem  + 4.2vw, 4.5rem);
+    --fs-hero: clamp(2.75rem,  1.2rem  + 6.6vw, 6rem);
+
+    --lh-tight: 1.08;
+    --lh-snug:  1.28;
+    --lh-body:  1.65;
+
+    --tracking-tight: -0.022em;   /* display sizes only */
+    --tracking-flat:  -0.011em;
+    --tracking-wide:  0.08em;     /* eyebrows / overlines */
+
+    --fw-regular: 400;
+    --fw-medium:  500;
+    --fw-semi:    600;
+    --fw-bold:    700;
+
+    /* ── Space (4px base grid) ───────────────────────────────────────── */
+    --sp-1:  0.25rem;
+    --sp-2:  0.5rem;
+    --sp-3:  0.75rem;
+    --sp-4:  1rem;
+    --sp-5:  1.25rem;
+    --sp-6:  1.5rem;
+    --sp-8:  2rem;
+    --sp-10: 2.5rem;
+    --sp-12: 3rem;
+    --sp-16: 4rem;
+    --sp-20: 5rem;
+    --sp-24: 6rem;
+    --sp-32: 8rem;
+
+    --gutter:     clamp(1rem, 0.5rem + 2.2vw, 2.5rem);
+    --shell-max:  1320px;
+    --prose-max:  68ch;
+    --nav-h:      64px;
+
+    /* ── Radius ──────────────────────────────────────────────────────── */
+    --r-xs:   6px;
+    --r-sm:   9px;
+    --r-md:   12px;
+    --r-lg:   16px;
+    --r-xl:   22px;
+    --r-2xl:  30px;
+    --r-full: 999px;
+
+    /* ── Elevation ───────────────────────────────────────────────────
+       Shadows on a dark plane read as *depth of field*, not drop shadow:
+       a tight contact shadow plus a wide soft ambient. The brand glow is
+       reserved for the primary action and focused states. */
+    --shadow-xs:    0 1px 2px rgba(0, 0, 0, .40);
+    --shadow-sm:    0 2px 6px rgba(0, 0, 0, .34), 0 1px 2px rgba(0, 0, 0, .30);
+    --shadow-md:    0 8px 24px rgba(0, 0, 0, .40), 0 2px 6px rgba(0, 0, 0, .30);
+    --shadow-lg:    0 20px 48px rgba(0, 0, 0, .48), 0 4px 12px rgba(0, 0, 0, .32);
+    --shadow-xl:    0 36px 90px rgba(0, 0, 0, .58), 0 8px 20px rgba(0, 0, 0, .36);
+    --glow-brand:   0 0 0 1px rgba(127, 107, 240, .38), 0 10px 34px rgba(127, 107, 240, .30);
+    --glow-focus:   0 0 0 3px rgba(127, 107, 240, .38);
+
+    /* ── Motion ──────────────────────────────────────────────────────
+       Two families only. `--ease-out` for anything entering or
+       responding to a pointer; `--ease-spring` for anything that should
+       feel physical (panels, toggles, cards lifting). */
+    --ease-out:    cubic-bezier(.22, 1, .36, 1);
+    --ease-in-out: cubic-bezier(.65, 0, .35, 1);
+    --ease-spring: cubic-bezier(.34, 1.56, .64, 1);
+
+    --dur-instant: 90ms;
+    --dur-fast:    160ms;
+    --dur-base:    240ms;
+    --dur-slow:    420ms;
+    --dur-slower:  700ms;
+
+    --z-base:     1;
+    --z-sticky:   100;
+    --z-nav:      200;
+    --z-dropdown: 300;
+    --z-overlay:  400;
+    --z-modal:    500;
+    --z-toast:    600;
+}
+
+/*
+ | Light mode — every value re-picked against a white surface. The series
+ | slots are the light column of the same six hues (not the dark steps
+ | lightened), and the ramp is its own ordinal-validated set.
+ */
+:root[data-theme="light"] {
+    color-scheme: light;
+
+    --plane:        #f7f7fb;
+    --surface-1:    #ffffff;
+    --surface-2:    #f4f4f8;
+    --surface-3:    #eaeaf2;
+    --surface-sunk: #f0f0f6;
+
+    --glass-bg:   rgba(255, 255, 255, .72);
+    --glass-bd:   rgba(11, 11, 11, .09);
+
+    --text-primary:   #0b0b0f;
+    --text-secondary: #4b4b57;
+    --text-muted:     #6f7183;
+    --text-faint:     #9698a8;
+    --text-on-brand:  #ffffff;
+
+    --border:        rgba(11, 11, 15, .11);
+    --border-strong: rgba(11, 11, 15, .20);
+    --gridline:      #e6e6ee;
+    --axis:          #c9c9d6;
+
+    --brand-violet-soft: #6f5ae8;
+
+    --gradient-mesh: radial-gradient(60% 55% at 12% 8%,  rgba(127,107,240,.16), transparent 68%),
+                     radial-gradient(50% 50% at 88% 4%,  rgba(34,211,238,.12),  transparent 66%),
+                     radial-gradient(70% 60% at 50% 108%, rgba(87,68,196,.10),  transparent 70%);
+
+    --series-1: #2a78d6;
+    --series-2: #eb6834;
+    --series-3: #1baf7a;
+    --series-4: #eda100;
+    --series-5: #e87ba4;
+    --series-6: #4a3aa7;
+
+    --ramp-0: rgba(11, 11, 15, .05);
+    --ramp-1: #b6a9f8;
+    --ramp-2: #9784f2;
+    --ramp-3: #7460e6;
+    --ramp-4: #5340c0;
+    --ramp-5: #3a2a8e;
+
+    --shadow-xs: 0 1px 2px rgba(16, 18, 38, .06);
+    --shadow-sm: 0 2px 6px rgba(16, 18, 38, .07), 0 1px 2px rgba(16, 18, 38, .05);
+    --shadow-md: 0 8px 24px rgba(16, 18, 38, .09), 0 2px 6px rgba(16, 18, 38, .06);
+    --shadow-lg: 0 20px 48px rgba(16, 18, 38, .12), 0 4px 12px rgba(16, 18, 38, .07);
+    --shadow-xl: 0 36px 90px rgba(16, 18, 38, .16), 0 8px 20px rgba(16, 18, 38, .08);
+}
+
+/* OS preference applies only until the user stamps an explicit choice. */
+@media (prefers-color-scheme: light) {
+    :root:not([data-theme]) {
+        color-scheme: light;
+        --plane: #f7f7fb;
+        --surface-1: #ffffff;
+        --surface-2: #f4f4f8;
+        --surface-3: #eaeaf2;
+        --surface-sunk: #f0f0f6;
+        --glass-bg: rgba(255, 255, 255, .72);
+        --glass-bd: rgba(11, 11, 11, .09);
+        --text-primary: #0b0b0f;
+        --text-secondary: #4b4b57;
+        --text-muted: #6f7183;
+        --text-faint: #9698a8;
+        --border: rgba(11, 11, 15, .11);
+        --border-strong: rgba(11, 11, 15, .20);
+        --gridline: #e6e6ee;
+        --series-1: #2a78d6; --series-2: #eb6834; --series-3: #1baf7a;
+        --series-4: #eda100; --series-5: #e87ba4; --series-6: #4a3aa7;
+        --ramp-0: rgba(11,11,15,.05);
+        --ramp-1: #b6a9f8; --ramp-2: #9784f2; --ramp-3: #7460e6;
+        --ramp-4: #5340c0; --ramp-5: #3a2a8e;
+    }
+}

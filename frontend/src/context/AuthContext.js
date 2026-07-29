@@ -1,60 +1,154 @@
-import React, { createContext, useContext, useState, useEffect } from "react";
-import axiosInstance from "../api/axiosInstance";
+import React, {
+    createContext, useContext, useState, useEffect, useCallback, useMemo, useRef
+} from "react";
+import { useNavigate, useLocation } from "react-router-dom";
+
+import * as account from "../services/account";
+import { onSessionExpired } from "../api/client";
+
+/*
+ |==========================================================================
+ | AuthContext
+ |==========================================================================
+ | Owns the session: who is signed in, their aggregate stats, and the four
+ | ways in and out (register, login, Google, logout).
+ |
+ | `status` is a three-state machine rather than a pair of booleans, because
+ | "still checking" and "definitely signed out" are genuinely different and
+ | routes need to tell them apart — treating unresolved as signed-out flashes
+ | the sign-in page on every hard refresh.
+ */
 
 const AuthContext = createContext(null);
 
 export const AuthProvider = ({ children }) => {
     const [user, setUser] = useState(null);
-    const [loading, setLoading] = useState(true);
+    const [stats, setStats] = useState(null);
+    const [status, setStatus] = useState("resolving"); // resolving | authenticated | anonymous
 
-    useEffect(() => {
-        const verifySession = async () => {
-            try {
-                const res = await axiosInstance.get("/profile/me");
-                setUser(res.data.data.user);
-            } catch (err) {
-                setUser(null);
-            } finally {
-                setLoading(false);
-            }
-        };
-        verifySession();
+    const navigate = useNavigate();
+    const location = useLocation();
+
+    // Held in a ref so the expiry subscription below doesn't have to
+    // re-subscribe on every navigation.
+    const locationRef = useRef(location);
+    locationRef.current = location;
+
+    /* ── Session probe ─────────────────────────────────────────────────── */
+
+    const refresh = useCallback(async () => {
+        try {
+            const data = await account.fetchMe();
+            setUser(data.user);
+            setStats(data.stats);
+            setStatus("authenticated");
+            return data.user;
+        } catch {
+            setUser(null);
+            setStats(null);
+            setStatus("anonymous");
+            return null;
+        }
     }, []);
 
-    const login = (userData) => {
-        setUser(userData);
-    };
+    useEffect(() => {
+        refresh();
+    }, [refresh]);
 
-    const logout = async () => {
-        try {
-            await axiosInstance.post("/auth/logout");
-        } catch (e) {}
-        setUser(null);
-    };
+    /* ── Expiry mid-session ────────────────────────────────────────────── */
 
-    const updateUser = (updatedUser) => {
-        setUser(updatedUser);
-    };
+    useEffect(
+        () =>
+            onSessionExpired(() => {
+                setUser(null);
+                setStats(null);
+                setStatus("anonymous");
 
-    return (
-        <AuthContext.Provider value={{
-            user,
-            loading,
-            isAuthenticated: !!user,
-            login,
-            logout,
-            updateUser
-        }}>
-            {children}
-        </AuthContext.Provider>
+                const { pathname, search } = locationRef.current;
+                const onPublicPage = ["/", "/enter", "/join", "/recover"].includes(pathname);
+
+                if (!onPublicPage) {
+                    // Router navigation rather than a hard redirect, so the
+                    // toast queue and in-flight state survive.
+                    navigate(`/enter?from=${encodeURIComponent(pathname + search)}`, {
+                        replace: true
+                    });
+                }
+            }),
+        [navigate]
     );
+
+    /* ── Entry points ──────────────────────────────────────────────────── */
+
+    const applySession = useCallback(async (signedInUser) => {
+        setUser(signedInUser);
+        setStatus("authenticated");
+
+        // The auth endpoints return the user but no stats block, and the
+        // Command Deck renders from stats — fetch the full profile now so it
+        // doesn't land on an empty dashboard.
+        try {
+            const data = await account.fetchMe();
+            setUser(data.user);
+            setStats(data.stats);
+        } catch { /* session is valid regardless; stats fill in on next load */ }
+
+        return signedInUser;
+    }, []);
+
+    const login = useCallback(
+        async (credentials) => applySession(await account.login(credentials)),
+        [applySession]
+    );
+
+    const register = useCallback(
+        async (details) => applySession(await account.register(details)),
+        [applySession]
+    );
+
+    const loginWithGoogle = useCallback(
+        async (credential) => applySession(await account.loginWithGoogle(credential)),
+        [applySession]
+    );
+
+    const logout = useCallback(async () => {
+        await account.logout();
+        setUser(null);
+        setStats(null);
+        setStatus("anonymous");
+        navigate("/", { replace: true });
+    }, [navigate]);
+
+    /* ── Local mutations ───────────────────────────────────────────────── */
+
+    const updateUser = useCallback((patch) => {
+        setUser((prev) => (prev ? { ...prev, ...patch } : prev));
+    }, []);
+
+    const value = useMemo(
+        () => ({
+            user,
+            stats,
+            status,
+            resolving: status === "resolving",
+            isAuthenticated: status === "authenticated",
+            isAdmin: user?.role === "admin",
+            login,
+            register,
+            loginWithGoogle,
+            logout,
+            refresh,
+            updateUser
+        }),
+        [user, stats, status, login, register, loginWithGoogle, logout, refresh, updateUser]
+    );
+
+    return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
 
 export const useAuth = () => {
     const context = useContext(AuthContext);
-    if (!context) {
-        throw new Error("useAuth must be used within an AuthProvider");
-    }
+    if (!context) throw new Error("useAuth must be used inside an AuthProvider.");
     return context;
 };
 

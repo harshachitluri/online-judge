@@ -64,6 +64,22 @@ const userSchema = new mongoose.Schema({
         type: String,
         enum: SUPPORTED_LANGUAGES,
         default: "cpp"
+    },
+
+    /* ── Password reset ─────────────────────────────────────────── */
+    // Only the SHA-256 hash of the reset token is stored, mirroring how the
+    // password itself is never kept in plaintext — a database leak alone
+    // must not be enough to let someone reset an account.
+    resetPasswordToken: {
+        type: String,
+        default: undefined,
+        select: false
+    },
+
+    resetPasswordExpires: {
+        type: Date,
+        default: undefined,
+        select: false
     }
 
 }, { timestamps: true });

@@ -1,0 +1,457 @@
+/*
+ |==========================================================================
+ | AXIOM — Genesis (landing page)
+ |==========================================================================
+ */
+
+.landing { position: relative; overflow: clip; }
+
+.section__title {
+    font-size: var(--fs-3xl);
+    font-weight: var(--fw-bold);
+    letter-spacing: var(--tracking-tight);
+    max-width: 20ch;
+}
+
+.section__lede {
+    font-size: var(--fs-md);
+    color: var(--text-muted);
+    max-width: 58ch;
+    line-height: var(--lh-body);
+}
+
+/* ── Hero ───────────────────────────────────────────────────────────────── */
+
+.hero {
+    position: relative;
+    display: flex;
+    align-items: center;
+    min-height: min(92dvh, 900px);
+    padding-block: var(--sp-16) var(--sp-20);
+}
+
+.hero__inner {
+    display: grid;
+    grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
+    align-items: center;
+    gap: clamp(var(--sp-8), 5vw, var(--sp-16));
+    width: 100%;
+}
+
+.hero__copy {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--sp-6);
+}
+
+.hero__title {
+    font-size: var(--fs-hero);
+    font-weight: var(--fw-bold);
+    line-height: 0.98;
+    letter-spacing: -0.035em;
+}
+
+.hero__line { display: block; }
+
+/*
+ | Each word is a clipping window; the inner span is what slides up through
+ | it. `overflow: hidden` on the window is what produces the "rolling into
+ | place" reveal rather than a plain fade.
+ */
+.word {
+    display: inline-block;
+    overflow: hidden;
+    vertical-align: bottom;
+    /* Room for descenders and for the gradient text's padding, or the
+       clip shaves the bottom off "g" and "q". */
+    padding-bottom: 0.09em;
+    margin-right: 0.24em;
+}
+
+.word > span { display: inline-block; will-change: transform; }
+
+.hero__lede {
+    font-size: var(--fs-lg);
+    color: var(--text-secondary);
+    max-width: 52ch;
+    line-height: 1.55;
+}
+
+.hero__cta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--sp-3);
+}
+
+.hero__meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--sp-4);
+    font-size: var(--fs-xs);
+    color: var(--text-muted);
+}
+
+.hero__meta span {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.hero__meta svg { color: var(--status-good); }
+
+.hero__scroll {
+    position: absolute;
+    bottom: var(--sp-8);
+    left: 50%;
+    translate: -50% 0;
+    color: var(--text-faint);
+}
+
+/* ── Hero code panel ────────────────────────────────────────────────────── */
+
+.hero__panel { position: relative; }
+
+.codepanel {
+    border-radius: var(--r-xl);
+    background: var(--glass-bg);
+    border: 1px solid var(--glass-bd);
+    -webkit-backdrop-filter: var(--glass-blur);
+    backdrop-filter: var(--glass-blur);
+    box-shadow: var(--shadow-xl);
+    overflow: hidden;
+    transform-style: preserve-3d;
+    will-change: transform;
+}
+
+.codepanel__bar {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-3);
+    padding: var(--sp-3) var(--sp-4);
+    border-bottom: 1px solid var(--border);
+    background: var(--surface-2);
+}
+
+.codepanel__dots { display: inline-flex; gap: 6px; }
+
+.codepanel__dots i {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: var(--border-strong);
+}
+
+.codepanel__file {
+    font-size: var(--fs-xs);
+    color: var(--text-muted);
+    flex: 1;
+}
+
+.codepanel__code {
+    padding: var(--sp-5);
+    font-size: var(--fs-sm);
+    line-height: 1.72;
+    color: var(--text-secondary);
+    overflow-x: auto;
+    white-space: pre;
+    tab-size: 4;
+}
+
+.codepanel__foot {
+    display: flex;
+    gap: var(--sp-5);
+    padding: var(--sp-3) var(--sp-5);
+    border-top: 1px solid var(--border);
+    background: var(--surface-sunk);
+    font-size: var(--fs-xs);
+    color: var(--text-muted);
+}
+
+.codepanel__stat {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.hero__chip {
+    position: absolute;
+    display: flex;
+    align-items: center;
+    gap: var(--sp-3);
+    padding: var(--sp-3) var(--sp-4);
+    border-radius: var(--r-lg);
+    background: var(--glass-bg);
+    border: 1px solid var(--glass-bd);
+    -webkit-backdrop-filter: var(--glass-blur);
+    backdrop-filter: var(--glass-blur);
+    box-shadow: var(--shadow-lg);
+    font-size: var(--fs-xs);
+    white-space: nowrap;
+}
+
+.hero__chip strong { font-size: var(--fs-sm); }
+.hero__chip--one { top: -22px; right: -14px; }
+.hero__chip--two { bottom: -26px; left: -22px; }
+
+@media (max-width: 1000px) {
+    .hero__inner { grid-template-columns: 1fr; }
+    .hero__panel { max-width: 560px; }
+    .hero__chip--one { right: 8px; }
+    .hero__chip--two { left: 8px; }
+}
+
+@media (max-width: 600px) {
+    .hero__chip { display: none; }
+    .hero__scroll { display: none; }
+}
+
+/* ── Counters ───────────────────────────────────────────────────────────── */
+
+.counters {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(190px, 100%), 1fr));
+    gap: var(--sp-6);
+    padding: var(--sp-8) var(--sp-6);
+    border-block: 1px solid var(--border);
+}
+
+.counter {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.counter__value {
+    font-size: var(--fs-2xl);
+    font-weight: var(--fw-bold);
+    letter-spacing: var(--tracking-tight);
+    background: var(--gradient-brand);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    line-height: 1.15;
+}
+
+.counter__label {
+    font-size: var(--fs-sm);
+    color: var(--text-secondary);
+}
+
+.counter__sub {
+    font-size: var(--fs-xs);
+    color: var(--text-faint);
+}
+
+/* ── Bento grid ─────────────────────────────────────────────────────────── */
+
+.bento {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: var(--sp-4);
+    margin-top: var(--sp-10);
+}
+
+.bento__cell {
+    grid-column: span var(--span, 1);
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-3);
+    padding: var(--sp-6);
+    border-radius: var(--r-xl);
+    background: var(--surface-1);
+    border: 1px solid var(--border);
+    transition: border-color var(--dur-base) var(--ease-out),
+                transform var(--dur-base) var(--ease-out),
+                box-shadow var(--dur-base) var(--ease-out);
+}
+
+.bento__cell:hover {
+    transform: translateY(-4px);
+    border-color: var(--border-strong);
+    box-shadow: var(--shadow-lg);
+}
+
+.bento__icon {
+    display: grid;
+    place-items: center;
+    width: 44px;
+    height: 44px;
+    border-radius: var(--r-md);
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+}
+
+.bento__title {
+    font-size: var(--fs-lg);
+    font-weight: var(--fw-semi);
+}
+
+.bento__plain {
+    font-size: var(--fs-2xs);
+    letter-spacing: var(--tracking-wide);
+    text-transform: uppercase;
+    color: var(--text-faint);
+}
+
+.bento__body {
+    font-size: var(--fs-sm);
+    color: var(--text-muted);
+    line-height: 1.62;
+}
+
+@media (max-width: 900px) {
+    .bento { grid-template-columns: repeat(2, 1fr); }
+    .bento__cell { grid-column: span 1; }
+}
+
+@media (max-width: 560px) {
+    .bento { grid-template-columns: 1fr; }
+}
+
+/* ── Principles ─────────────────────────────────────────────────────────── */
+
+.principle__icon {
+    display: grid;
+    place-items: center;
+    width: 38px;
+    height: 38px;
+    border-radius: var(--r-md);
+    background: var(--brand-wash);
+    border: 1px solid rgba(127, 107, 240, .28);
+    color: var(--brand-violet-soft);
+}
+
+/* ── Standings preview ──────────────────────────────────────────────────── */
+
+.standings-preview__row {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-3);
+    padding: var(--sp-3);
+    border-radius: var(--r-md);
+    background: var(--surface-2);
+}
+
+.standings-preview__rank {
+    display: grid;
+    place-items: center;
+    width: 26px;
+    height: 26px;
+    border-radius: var(--r-sm);
+    background: var(--surface-3);
+    font-size: var(--fs-xs);
+    font-weight: var(--fw-bold);
+    color: var(--text-muted);
+    flex: none;
+}
+
+/* ── Roadmap ────────────────────────────────────────────────────────────── */
+
+.roadmap {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(270px, 100%), 1fr));
+    gap: var(--sp-5);
+    margin-top: var(--sp-10);
+}
+
+.roadmap__col {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-4);
+    padding: var(--sp-6);
+    border-radius: var(--r-xl);
+    background: var(--surface-1);
+    border: 1px solid var(--border);
+    /* The left edge encodes the phase, reinforcing the badge rather than
+       replacing it. */
+    border-left-width: 2px;
+}
+
+.roadmap__col--done   { border-left-color: var(--status-good); }
+.roadmap__col--active { border-left-color: var(--brand-violet); }
+.roadmap__col--planned{ border-left-color: var(--border-strong); }
+
+.roadmap__head {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-2);
+}
+
+.roadmap__phase {
+    font-size: var(--fs-md);
+    font-weight: var(--fw-semi);
+    flex: 1;
+}
+
+.roadmap__marker {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: currentColor;
+    opacity: .5;
+}
+
+.roadmap__list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-3);
+}
+
+.roadmap__list li {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--sp-3);
+    font-size: var(--fs-sm);
+    color: var(--text-secondary);
+    line-height: 1.5;
+}
+
+.roadmap__list svg { flex: none; margin-top: 3px; }
+
+/* ── Finale ─────────────────────────────────────────────────────────────── */
+
+.finale {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    gap: var(--sp-5);
+    padding: clamp(var(--sp-12), 8vw, var(--sp-24)) var(--sp-6);
+    border-radius: var(--r-2xl);
+    background: var(--surface-1);
+    border: 1px solid var(--border);
+    position: relative;
+    overflow: hidden;
+}
+
+/* A wide, very soft brand wash behind the CTA — enough to lift it off the
+   plane without turning it into a coloured box. */
+.finale::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(60% 100% at 50% 0%, rgba(127, 107, 240, .18), transparent 70%);
+    pointer-events: none;
+}
+
+.finale > * { position: relative; }
+
+.finale__title {
+    font-size: var(--fs-3xl);
+    font-weight: var(--fw-bold);
+    letter-spacing: var(--tracking-tight);
+}
+
+.finale__body {
+    font-size: var(--fs-md);
+    color: var(--text-muted);
+    max-width: 48ch;
+}
+
+/* ── Footer ─────────────────────────────────────────────────────────────── */
+
+.footer {
+    padding-block: var(--sp-8);
+    border-top: 1px solid var(--border);
+}

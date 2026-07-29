@@ -71,6 +71,7 @@ const getLeaderboard = asyncHandler(async (req, res) => {
         }
 
     ]);
+    
 
     // Attach sequential rank (1-based)
     const ranked = leaderboard.map((entry, index) => ({

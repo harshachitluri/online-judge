@@ -1,3 +1,5 @@
+const ApiError = require("../utils/ApiError");
+
 /*
  |--------------------------------------------------------------------------
  | Global Error Handler
@@ -45,10 +47,17 @@ const errorHandler = (err, req, res, next) => {
         message    = "Request body is too large.";
     }
 
+    // An ApiError's message is always hand-written for the client (e.g.
+    // "The AI Assistant isn't configured on this server") and safe to send
+    // even at a 5xx status — only a *raw*, unexpected error (a thrown SDK
+    // exception, a bug) risks leaking internals like a stack trace or a
+    // dependency's file paths, so only those get replaced.
     if (statusCode >= 500) {
         console.error("Unhandled error:", err);
-        // Never leak internal error text / stack traces to clients.
-        message = "Internal Server Error";
+
+        if (!(err instanceof ApiError)) {
+            message = "Internal Server Error";
+        }
     }
 
     res.status(statusCode).json({

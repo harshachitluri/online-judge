@@ -17,6 +17,7 @@ const submissionRoutes = require("./routes/submissionRoutes");
 const runRoutes = require("./routes/runRoutes");
 const profileRoutes = require("./routes/profileRoutes");
 const leaderboardRoutes = require("./routes/leaderboardRoutes");
+const aiRoutes = require("./routes/aiRoutes");
 
 /* ── Worker & Middleware ────────────────────────────────────────────── */
 
@@ -67,6 +68,7 @@ app.use("/api/submissions", submissionRoutes);
 app.use("/api/run", runRoutes);
 app.use("/api/profile", profileRoutes);
 app.use("/api/leaderboard", leaderboardRoutes);
+app.use("/api/ai", aiRoutes);
 
 /* ── 404 — unknown route ────────────────────────────────────────────── */
 

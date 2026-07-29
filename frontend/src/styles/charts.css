@@ -1,0 +1,327 @@
+/*
+ |==========================================================================
+ | AXIOM — Charts
+ |==========================================================================
+ | Chart chrome only. Every data colour comes from a --series-N or --ramp-N
+ | token applied inline by the component, never from a class here.
+ */
+
+.chart { position: relative; }
+
+.chart__svg {
+    width: 100%;
+    display: block;
+    overflow: visible;
+}
+
+.chart__empty {
+    padding: var(--sp-8) var(--sp-4);
+    text-align: center;
+    font-size: var(--fs-sm);
+    color: var(--text-muted);
+}
+
+/* ── Legend ─────────────────────────────────────────────────────────────
+   Always present for two or more series. Wraps rather than scrolls, so no
+   series can be hidden off the edge of the card. */
+
+.legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--sp-2) var(--sp-4);
+}
+
+.legend__item {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-2);
+    font-size: var(--fs-xs);
+}
+
+.legend__swatch {
+    width: 9px;
+    height: 9px;
+    border-radius: 3px;
+    flex: none;
+}
+
+/* Legend text wears ink tokens — never the series colour. The swatch beside
+   it is what carries identity. */
+.legend__label { color: var(--text-secondary); }
+.legend__value { color: var(--text-muted); font-variant-numeric: tabular-nums; }
+
+/* ── Horizontal bars ────────────────────────────────────────────────────── */
+
+.bars {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-3);
+}
+
+.bars__row {
+    display: grid;
+    grid-template-columns: minmax(72px, 132px) 1fr auto;
+    align-items: center;
+    gap: var(--sp-3);
+}
+
+.bars__label {
+    font-size: var(--fs-xs);
+    color: var(--text-secondary);
+}
+
+.bars__track {
+    position: relative;
+    width: 100%;
+    background: var(--surface-2);
+    border-radius: var(--r-xs);
+    overflow: hidden;
+}
+
+/* 4px rounded data-end, square against the baseline — the bar reads as
+   growing from the axis rather than floating. */
+.bars__fill {
+    display: block;
+    height: 100%;
+    border-radius: 0 4px 4px 0;
+    min-width: 2px;
+}
+
+.bars__value {
+    font-size: var(--fs-xs);
+    color: var(--text-primary);
+    font-weight: var(--fw-medium);
+    white-space: nowrap;
+}
+
+@media (max-width: 560px) {
+    .bars__row {
+        grid-template-columns: 1fr auto;
+        grid-template-areas: "label value" "track track";
+        gap: var(--sp-1) var(--sp-3);
+    }
+    .bars__label { grid-area: label; }
+    .bars__value { grid-area: value; }
+    .bars__track { grid-area: track; }
+}
+
+/* ── Composition bar ────────────────────────────────────────────────────
+   A 2px surface-coloured gap between segments. This is not decoration: it
+   is what keeps two adjacent hues separable for a colour-blind reader. */
+
+.composition {
+    display: flex;
+    width: 100%;
+    gap: 2px;
+    border-radius: var(--r-xs);
+    overflow: hidden;
+    background: var(--surface-2);
+}
+
+.composition__seg {
+    display: block;
+    height: 100%;
+    min-width: 3px;
+    flex-basis: 0;
+    cursor: default;
+    transition: filter var(--dur-fast) var(--ease-out);
+}
+
+.composition__seg:hover { filter: brightness(1.14); }
+
+/* ── Heatmap ────────────────────────────────────────────────────────────── */
+
+.heatmap { padding-bottom: var(--sp-1); }
+
+.heatmap__inner {
+    display: inline-flex;
+    flex-direction: column;
+    gap: var(--sp-2);
+    min-width: 100%;
+}
+
+.heatmap__months {
+    display: grid;
+    grid-auto-flow: column;
+    grid-auto-columns: 14px;
+    font-size: var(--fs-2xs);
+    color: var(--text-muted);
+    height: 13px;
+}
+
+.heatmap__month { grid-row: 1; }
+
+/* Column-major: seven rows (one per weekday), filling downward then across,
+   which is what makes the weekday alignment work. */
+.heatmap__grid {
+    display: grid;
+    grid-template-rows: repeat(7, 12px);
+    grid-auto-flow: column;
+    grid-auto-columns: 12px;
+    gap: 2px;
+}
+
+.heatmap__cell {
+    width: 12px;
+    height: 12px;
+    border-radius: 3px;
+    padding: 0;
+    border: 1px solid transparent;
+    transition: transform var(--dur-instant) var(--ease-out),
+                border-color var(--dur-instant) var(--ease-out);
+}
+
+.heatmap__cell:hover {
+    transform: scale(1.28);
+    border-color: var(--text-primary);
+}
+
+.heatmap__key {
+    width: 10px;
+    height: 10px;
+    border-radius: 2px;
+    display: inline-block;
+}
+
+/* ── Radial meter ───────────────────────────────────────────────────────── */
+
+.meter {
+    position: relative;
+    display: grid;
+    place-items: center;
+    flex: none;
+}
+
+.meter svg { position: absolute; inset: 0; }
+
+.meter__center {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1px;
+    text-align: center;
+}
+
+.meter__value {
+    font-size: var(--fs-xl);
+    font-weight: var(--fw-bold);
+    letter-spacing: var(--tracking-tight);
+    line-height: 1;
+}
+
+.meter__caption {
+    font-size: var(--fs-2xs);
+    color: var(--text-muted);
+    letter-spacing: var(--tracking-wide);
+    text-transform: uppercase;
+}
+
+/* ── Progress row ───────────────────────────────────────────────────────── */
+
+.progress-row {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-2);
+}
+
+.progress-row__head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--sp-3);
+}
+
+.progress-row__label {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--sp-2);
+    font-size: var(--fs-sm);
+    font-weight: var(--fw-medium);
+}
+
+.progress-row__dot {
+    width: 8px;
+    height: 8px;
+    border-radius: var(--r-full);
+    flex: none;
+}
+
+.progress-row__value {
+    font-size: var(--fs-xs);
+    color: var(--text-secondary);
+}
+
+.progress-row__sub {
+    font-size: var(--fs-2xs);
+    color: var(--text-muted);
+}
+
+/* ── Stat tile ──────────────────────────────────────────────────────────
+   Not a chart: a single magnitude with a label is the correct form for a
+   headline number, and wrapping it in a gauge would be decoration. */
+
+.stat-tile {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-2);
+    padding: var(--sp-4) var(--sp-5);
+    background: var(--surface-1);
+    border: 1px solid var(--border);
+    border-radius: var(--r-lg);
+    transition: border-color var(--dur-base) var(--ease-out),
+                transform var(--dur-base) var(--ease-out);
+}
+
+.stat-tile:hover {
+    border-color: var(--border-strong);
+    transform: translateY(-2px);
+}
+
+.stat-tile__top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--sp-3);
+}
+
+.stat-tile__label {
+    font-size: var(--fs-2xs);
+    font-weight: var(--fw-semi);
+    letter-spacing: var(--tracking-wide);
+    text-transform: uppercase;
+    color: var(--text-muted);
+}
+
+.stat-tile__icon {
+    display: grid;
+    place-items: center;
+    width: 28px;
+    height: 28px;
+    border-radius: var(--r-sm);
+    background: var(--surface-2);
+}
+
+/* Proportional figures — this is a standalone number, not a column that
+   needs to align vertically. */
+.stat-tile__value {
+    font-size: var(--fs-2xl);
+    font-weight: var(--fw-bold);
+    letter-spacing: var(--tracking-tight);
+    line-height: 1.05;
+}
+
+.stat-tile__foot {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-2);
+    flex-wrap: wrap;
+    font-size: var(--fs-2xs);
+}
+
+.stat-tile__delta {
+    font-weight: var(--fw-semi);
+    font-variant-numeric: tabular-nums;
+}
+
+.stat-tile__sub { color: var(--text-muted); }
