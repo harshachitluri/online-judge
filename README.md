@@ -35,9 +35,7 @@ A full-stack online judge platform for practicing coding problems — write, run
 │   │   ├── routes/        # Express routers
 │   │   ├── services/      # Code execution, Gemini, email, Docker orchestration
 │   │   ├── workers/       # Async judge worker
-│   │   └── middleware/    # Auth, admin, error handling
-│   ├── Dockerfile         # Backend API image
-│   └── Dockerfile.runner  # Sandboxed code execution image
+│       └── middleware/    # Auth, admin, error handling
 ├── frontend/           # React SPA
 │   └── src/
 │       ├── pages/         # Route-level pages (Deck, Vault, Forge, Architect, ...)
@@ -116,17 +114,22 @@ not a sandbox, so don't point it at untrusted code.
 
 ### Run with Docker Compose
 
-For the sandboxed execution path, build the two images and bring the stack up:
+For the sandboxed execution path, build both images from the single root
+`Dockerfile` and bring the stack up:
 
 ```bash
-docker build -f backend/Dockerfile.runner -t codejudge-runner .
-docker build -f backend/Dockerfile       -t codejudge-backend ./backend
+docker build --target runner  -t codejudge-runner  .
+docker build --target backend -t codejudge-backend .
 docker compose up -d
 ```
 
-This starts MongoDB and the backend API, with the backend able to spawn isolated
-runner containers (no network, memory cap, PID limit, read-only filesystem) for
-each submission. The frontend still runs with `npm start`.
+The backend spawns isolated runner containers (no network, memory cap, PID
+limit, read-only filesystem) for each submission. The database is MongoDB
+Atlas — set `MONGO_URI` in `.env` first. The frontend still runs with
+`npm start` in development.
+
+For a production deployment, `./deploy.sh` does all of the above plus builds
+the frontend; Caddy then serves that build and proxies `/api` (see `Caddyfile`).
 
 ## License
 

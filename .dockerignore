@@ -4,9 +4,17 @@
 node_modules
 **/node_modules
 
+# Both forms are required. A bare ".env" matches ONLY the context root —
+# it does not match backend/.env, which is exactly where the real secrets
+# live. Without the "**/" variants they get COPYed into the image and ship
+# with it: anyone who can pull or docker-save the image reads your database
+# password, JWT secret and API keys.
 .env
 .env.*
+**/.env
+**/.env.*
 !.env.example
+!**/.env.example
 
 backend/src/temp/
 

@@ -16,7 +16,10 @@
 services:
 
   backend:
-    image: codejudge-backend:latest
+    # Locally this is the image `docker build` just produced. On the server
+    # it is the ECR URI, set in .env — so the same compose file serves both
+    # without a separate prod override.
+    image: ${BACKEND_IMAGE:-codejudge-backend:latest}
     container_name: codejudge-backend
     restart: unless-stopped
 
@@ -41,7 +44,9 @@ services:
 
       # Untrusted code runs in throwaway runner containers.
       DOCKER_ENABLED:      "true"
-      DOCKER_RUNNER_IMAGE: codejudge-runner:latest
+      # Also overridable, because on the server this is an ECR URI that the
+      # backend passes to `docker run` when spawning a sandbox.
+      DOCKER_RUNNER_IMAGE: ${DOCKER_RUNNER_IMAGE:-codejudge-runner:latest}
       DOCKER_MEMORY:       ${DOCKER_MEMORY:-256m}
       DOCKER_CPUS:         ${DOCKER_CPUS:-0.5}
       DOCKER_PIDS_LIMIT:   ${DOCKER_PIDS_LIMIT:-50}

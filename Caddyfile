@@ -1,0 +1,75 @@
+# =============================================================================
+# CodeJudge — Caddy reverse proxy
+# =============================================================================
+# Serves the built React SPA and proxies the API on ONE domain. That single
+# fact is why the session cookie can stay SameSite=Lax instead of None:
+# there are no cross-site requests to accommodate, so the browser refuses to
+# send the cookie to anyone else's page for free.
+#
+# TLS is automatic. Caddy provisions and renews a Let's Encrypt certificate
+# on first start, provided:
+#   · the A record for this domain already points at this server, and
+#   · ports 80 and 443 are reachable from the internet (ACME uses both).
+#
+# Usage:
+#   1. Replace codejudge.example.com below with your real domain.
+#   2. Build the frontend:  cd frontend && npm run build
+#   3. caddy run --config /path/to/Caddyfile
+#      (or copy to /etc/caddy/Caddyfile and `systemctl reload caddy`)
+# =============================================================================
+
+codejudge.example.com {
+	# --- API -----------------------------------------------------------
+	# Matched before the SPA fallback below, so /api/* never falls through
+	# to index.html. The backend is published on loopback only (see
+	# docker-compose.yml) — it is not reachable from outside this box.
+	handle /api/* {
+		reverse_proxy 127.0.0.1:5001
+	}
+
+	# Health endpoint, for uptime monitoring that shouldn't wake the SPA.
+	handle /healthz {
+		reverse_proxy 127.0.0.1:5001
+	}
+
+	# --- Static SPA ----------------------------------------------------
+	handle {
+		root * /srv/codejudge/frontend/build
+
+		# Hashed asset filenames (main.4f3a2b.js) are immutable, so they can
+		# be cached hard. index.html must never be, or a deploy leaves users
+		# on stale JS pointing at an API that has moved on.
+		@immutable path /static/*
+		header @immutable Cache-Control "public, max-age=31536000, immutable"
+		header /index.html Cache-Control "no-cache"
+
+		# try_files + fallback to index.html: client-side routes like
+		# /vault or /forge/two-sum are not real files on disk, and must be
+		# handed to React Router rather than 404'd by Caddy.
+		try_files {path} /index.html
+		file_server
+	}
+
+	# --- Security headers ----------------------------------------------
+	# helmet() covers the API responses; these cover the HTML shell, which
+	# helmet never sees because Caddy serves it directly.
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		# Caddy advertising its version buys you nothing.
+		-Server
+	}
+
+	# Compress text responses. Not images — they are already compressed and
+	# re-compressing burns CPU for nothing.
+	encode zstd gzip
+
+	log {
+		output file /var/log/caddy/codejudge.log {
+			roll_size 10MiB
+			roll_keep 5
+		}
+	}
+}
