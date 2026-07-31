@@ -13,6 +13,20 @@ const { sendMail } = require("../services/emailService");
 const MIN_PASSWORD_LENGTH = 6;
 const RESET_TOKEN_TTL_MS = 60 * 60 * 1000; // 1 hour
 
+/* ── One-time codes ──────────────────────────────────────────────────────
+ | Short enough to type from a phone, short-lived enough that a code sitting
+ | in an inbox is not a standing key to the account.
+ */
+const OTP_TTL_MS = 10 * 60 * 1000;        // 10 minutes
+const OTP_RESEND_COOLDOWN_MS = 60 * 1000; // 1 minute between sends
+const OTP_MAX_ATTEMPTS = 5;               // wrong guesses before the code dies
+const OTP_PURPOSES = ["login", "reset"];
+
+// The reset token minted after a code is verified is deliberately far
+// shorter-lived than an emailed link: the user is already at the keyboard
+// with the new-password form open.
+const OTP_RESET_TOKEN_TTL_MS = 15 * 60 * 1000;
+
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 const issueToken = (res, user) => {
@@ -240,6 +254,225 @@ const googleAuth = asyncHandler(async (req, res) => {
 
 const hashToken = (token) => crypto.createHash("sha256").update(token).digest("hex");
 
+/*
+ |--------------------------------------------------------------------------
+ | One-time code helpers
+ |--------------------------------------------------------------------------
+ | Shared by the "sign in with a code" and "reset with a code" flows, which
+ | differ only in what verification grants at the end.
+ */
+
+// randomInt, not Math.random — a predictable code is not a code.
+const generateCode = () => String(crypto.randomInt(0, 1000000)).padStart(6, "0");
+
+const normalizeCode = (code) => String(code ?? "").replace(/\D/g, "");
+
+/** Constant-time comparison, so a wrong code can't be narrowed by timing. */
+const codeMatches = (rawCode, storedHash) => {
+    if (!storedHash) return false;
+
+    const candidate = Buffer.from(hashToken(rawCode), "utf8");
+    const stored = Buffer.from(storedHash, "utf8");
+
+    return (
+        candidate.length === stored.length &&
+        crypto.timingSafeEqual(candidate, stored)
+    );
+};
+
+const clearCode = (user) => {
+    user.otpHash = undefined;
+    user.otpPurpose = undefined;
+    user.otpExpires = undefined;
+    user.otpAttempts = 0;
+};
+
+/** True while the last code for this account is still inside its cooldown. */
+const isCoolingDown = (user) =>
+    Boolean(user.otpSentAt) &&
+    Date.now() - new Date(user.otpSentAt).getTime() < OTP_RESEND_COOLDOWN_MS;
+
+/**
+ * Attaches a fresh code to the user document (without saving) and returns
+ * it in plaintext for the caller to email. Any previous code is replaced.
+ */
+const attachCode = (user, purpose) => {
+    const code = generateCode();
+
+    user.otpHash = hashToken(code);
+    user.otpPurpose = purpose;
+    user.otpExpires = new Date(Date.now() + OTP_TTL_MS);
+    user.otpAttempts = 0;
+    user.otpSentAt = new Date();
+
+    return code;
+};
+
+/* The code is spaced in the subject line so it survives the notification
+   preview on a phone, where the body may never be opened. */
+const codeEmail = ({ code, purpose }) => {
+    const minutes = Math.round(OTP_TTL_MS / 60000);
+
+    const intro =
+        purpose === "login"
+            ? "Here is your one-time sign-in code for CodeJudge."
+            : "We received a request to reset your CodeJudge password.";
+
+    return {
+        subject: `${code} is your CodeJudge ${purpose === "login" ? "sign-in" : "password reset"} code`,
+        text:
+            `${intro}\n\n` +
+            `Your code is: ${code}\n\n` +
+            `It expires in ${minutes} minutes and can only be used once.\n\n` +
+            `If you didn't request this, ignore this email — nothing has changed ` +
+            `on your account.`,
+        html: `
+            <p>${intro}</p>
+            <p style="font-size:28px;font-weight:700;letter-spacing:8px;margin:24px 0">${code}</p>
+            <p>This code expires in ${minutes} minutes and can only be used once.</p>
+            <p>If you didn't request this, ignore this email — nothing has changed on your account.</p>
+        `
+    };
+};
+
+/*
+ |--------------------------------------------------------------------------
+ | POST /api/auth/request-code  { email }
+ |--------------------------------------------------------------------------
+ | Passwordless sign-in: emails a 6-digit code that /verify-code exchanges
+ | for a session. Like forgot-password, the response is identical whether or
+ | not the address is registered.
+ */
+
+const requestLoginCode = asyncHandler(async (req, res) => {
+
+    const { email } = req.body;
+
+    if (!email) {
+        throw new ApiError(400, "Email is required.");
+    }
+
+    const normalizedEmail = String(email).trim().toLowerCase();
+
+    if (!EMAIL_PATTERN.test(normalizedEmail)) {
+        throw new ApiError(400, "Please provide a valid email address.");
+    }
+
+    const genericResponse = () =>
+        res.status(200).json(
+            new ApiResponse(200, "If that email is registered, a sign-in code is on its way.", {
+                expiresInSeconds: OTP_TTL_MS / 1000,
+                resendInSeconds: OTP_RESEND_COOLDOWN_MS / 1000
+            })
+        );
+
+    const user = await User.findOne({ email: normalizedEmail }).select("+otpSentAt");
+
+    // Unknown address, or a code sent moments ago — either way the caller
+    // gets the same answer, so neither reveals anything.
+    if (!user || isCoolingDown(user)) {
+        return genericResponse();
+    }
+
+    const code = attachCode(user, "login");
+    await user.save({ validateBeforeSave: false });
+
+    await sendMail({ to: user.email, ...codeEmail({ code, purpose: "login" }) });
+
+    return genericResponse();
+
+});
+
+/*
+ |--------------------------------------------------------------------------
+ | POST /api/auth/verify-code  { email, code, purpose }
+ |--------------------------------------------------------------------------
+ | purpose "login" → issues the session cookie directly.
+ | purpose "reset" → returns a short-lived reset token for /reset-password,
+ |                   so the password change itself stays on one endpoint
+ |                   whether the user arrived by emailed link or by code.
+ |
+ | Every failure returns the same message. "No such account" and "wrong
+ | code" being distinguishable would turn this into an account oracle.
+ */
+
+const verifyCode = asyncHandler(async (req, res) => {
+
+    const { email, code, purpose = "login" } = req.body;
+
+    if (!OTP_PURPOSES.includes(purpose)) {
+        throw new ApiError(400, `Unknown purpose. Expected one of: ${OTP_PURPOSES.join(", ")}.`);
+    }
+
+    if (!email || !code) {
+        throw new ApiError(400, "An email and a code are required.");
+    }
+
+    const normalizedEmail = String(email).trim().toLowerCase();
+    const normalizedCode = normalizeCode(code);
+
+    const rejected = () =>
+        new ApiError(400, "That code is incorrect or has expired. Request a new one.");
+
+    if (normalizedCode.length !== 6) {
+        throw rejected();
+    }
+
+    const user = await User.findOne({ email: normalizedEmail })
+        .select("+otpHash +otpPurpose +otpExpires +otpAttempts");
+
+    if (!user || !user.otpHash || user.otpPurpose !== purpose) {
+        throw rejected();
+    }
+
+    if (!user.otpExpires || user.otpExpires.getTime() <= Date.now()) {
+        clearCode(user);
+        await user.save({ validateBeforeSave: false });
+        throw rejected();
+    }
+
+    if ((user.otpAttempts || 0) >= OTP_MAX_ATTEMPTS) {
+        clearCode(user);
+        await user.save({ validateBeforeSave: false });
+        throw new ApiError(429, "Too many incorrect attempts. Request a new code.");
+    }
+
+    if (!codeMatches(normalizedCode, user.otpHash)) {
+        user.otpAttempts = (user.otpAttempts || 0) + 1;
+        await user.save({ validateBeforeSave: false });
+        throw rejected();
+    }
+
+    // Correct — burn it immediately. A code that survives its own use is a
+    // password with an expiry date.
+    clearCode(user);
+
+    if (purpose === "login") {
+        await user.save({ validateBeforeSave: false });
+        issueToken(res, user);
+
+        return res.status(200).json(
+            new ApiResponse(200, "Signed in with a one-time code.", {
+                user: publicUser(user)
+            })
+        );
+    }
+
+    const rawToken = crypto.randomBytes(32).toString("hex");
+
+    user.resetPasswordToken = hashToken(rawToken);
+    user.resetPasswordExpires = Date.now() + OTP_RESET_TOKEN_TTL_MS;
+    await user.save({ validateBeforeSave: false });
+
+    return res.status(200).json(
+        new ApiResponse(200, "Code verified. Choose a new password.", {
+            resetToken: rawToken,
+            expiresInSeconds: OTP_RESET_TOKEN_TTL_MS / 1000
+        })
+    );
+
+});
+
 const forgotPassword = asyncHandler(async (req, res) => {
 
     const { email } = req.body;
@@ -249,18 +482,24 @@ const forgotPassword = asyncHandler(async (req, res) => {
     }
 
     const normalizedEmail = String(email).trim().toLowerCase();
-    const user = await User.findOne({ email: normalizedEmail });
+    const user = await User.findOne({ email: normalizedEmail }).select("+otpSentAt");
 
     // Always the same response — see the comment above.
     const genericResponse = () =>
         res.status(200).json(
             new ApiResponse(
                 200,
-                "If that email is registered, a reset link is on its way."
+                "If that email is registered, a reset code is on its way.",
+                {
+                    expiresInSeconds: OTP_TTL_MS / 1000,
+                    resendInSeconds: OTP_RESEND_COOLDOWN_MS / 1000
+                }
             )
         );
 
-    if (!user) {
+    // The cooldown is what stops this endpoint being used to flood someone
+    // else's inbox. A caller inside it is answered as if nothing happened.
+    if (!user || isCoolingDown(user)) {
         return genericResponse();
     }
 
@@ -268,23 +507,35 @@ const forgotPassword = asyncHandler(async (req, res) => {
 
     user.resetPasswordToken = hashToken(rawToken);
     user.resetPasswordExpires = Date.now() + RESET_TOKEN_TTL_MS;
-    // Only the two reset fields changed — skip re-validating the rest of a
+
+    // One email carries both routes in: a code to type back into the tab
+    // they already have open, and a link for when the request came from a
+    // different device than the inbox is on.
+    const code = attachCode(user, "reset");
+
+    // Only the reset/code fields changed — skip re-validating the rest of a
     // document that may predate a later required field.
     await user.save({ validateBeforeSave: false });
 
     const frontendUrl = (process.env.FRONTEND_URL || "http://localhost:3000").replace(/\/$/, "");
     const resetUrl = `${frontendUrl}/reset-password?token=${rawToken}`;
+    const minutes = Math.round(OTP_TTL_MS / 60000);
 
     await sendMail({
         to: user.email,
-        subject: "Reset your CodeJudge password",
+        subject: `${code} is your CodeJudge password reset code`,
         text:
             `We received a request to reset your CodeJudge password.\n\n` +
-            `Reset it here (expires in 1 hour): ${resetUrl}\n\n` +
+            `Your verification code is: ${code}\n` +
+            `Enter it on the page you requested it from. It expires in ${minutes} minutes.\n\n` +
+            `On a different device? Use this link instead (expires in 1 hour):\n${resetUrl}\n\n` +
             `If you didn't request this, you can safely ignore this email.`,
         html: `
             <p>We received a request to reset your CodeJudge password.</p>
-            <p><a href="${resetUrl}">Click here to choose a new password</a> — this link expires in 1 hour.</p>
+            <p>Enter this verification code on the page you requested it from:</p>
+            <p style="font-size:28px;font-weight:700;letter-spacing:8px;margin:24px 0">${code}</p>
+            <p>It expires in ${minutes} minutes and can only be used once.</p>
+            <p>On a different device? <a href="${resetUrl}">Use this link instead</a> — it expires in 1 hour.</p>
             <p>If you didn't request this, you can safely ignore this email.</p>
         `
     });
@@ -317,6 +568,9 @@ const resetPassword = asyncHandler(async (req, res) => {
     user.password = await bcrypt.hash(password, 10);
     user.resetPasswordToken = undefined;
     user.resetPasswordExpires = undefined;
+    // A pending code from the same email is now moot — leaving it live would
+    // mean one request handed out two independent ways in.
+    clearCode(user);
     await user.save();
 
     // Issue a session immediately — resetting a password and then being
@@ -329,4 +583,8 @@ const resetPassword = asyncHandler(async (req, res) => {
 
 });
 
-module.exports = { register, login, logout, googleAuth, forgotPassword, resetPassword };
+module.exports = {
+    register, login, logout, googleAuth,
+    forgotPassword, resetPassword,
+    requestLoginCode, verifyCode
+};

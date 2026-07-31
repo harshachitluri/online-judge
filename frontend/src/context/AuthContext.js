@@ -111,6 +111,13 @@ export const AuthProvider = ({ children }) => {
         [applySession]
     );
 
+    // Passwordless: the emailed code is exchanged for the same session
+    // cookie every other entry point issues, so nothing downstream differs.
+    const loginWithCode = useCallback(
+        async ({ email, code }) => applySession(await account.loginWithCode({ email, code })),
+        [applySession]
+    );
+
     const logout = useCallback(async () => {
         await account.logout();
         setUser(null);
@@ -136,11 +143,12 @@ export const AuthProvider = ({ children }) => {
             login,
             register,
             loginWithGoogle,
+            loginWithCode,
             logout,
             refresh,
             updateUser
         }),
-        [user, stats, status, login, register, loginWithGoogle, logout, refresh, updateUser]
+        [user, stats, status, login, register, loginWithGoogle, loginWithCode, logout, refresh, updateUser]
     );
 
     return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

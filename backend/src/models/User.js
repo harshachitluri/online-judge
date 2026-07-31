@@ -80,6 +80,53 @@ const userSchema = new mongoose.Schema({
         type: Date,
         default: undefined,
         select: false
+    },
+
+    /* ── One-time email codes ───────────────────────────────────── */
+    // Used for both "sign in with a code" and "reset my password with a
+    // code". Only one code is live per account at a time — requesting a new
+    // one overwrites the last, so an old code in an old email can't be
+    // replayed. Like the reset token, only the SHA-256 hash is stored.
+    //
+    // All of these are `select: false`: nothing that reads a user for
+    // ordinary purposes (profile, leaderboard) should be carrying credential
+    // material around with it.
+    otpHash: {
+        type: String,
+        default: undefined,
+        select: false
+    },
+
+    // Which flow the code was issued for. A code emailed for a password
+    // reset must not be accepted as a login, so the purpose is checked on
+    // verification rather than treated as interchangeable.
+    otpPurpose: {
+        type: String,
+        enum: ["login", "reset"],
+        default: undefined,
+        select: false
+    },
+
+    otpExpires: {
+        type: Date,
+        default: undefined,
+        select: false
+    },
+
+    // Wrong guesses against the current code. Six digits is only a million
+    // possibilities, so unlimited attempts would make the code guessable.
+    otpAttempts: {
+        type: Number,
+        default: 0,
+        select: false
+    },
+
+    // Backs the resend cooldown — without it, "resend" is an open relay for
+    // mailing someone else's inbox.
+    otpSentAt: {
+        type: Date,
+        default: undefined,
+        select: false
     }
 
 }, { timestamps: true });

@@ -865,3 +865,87 @@
 
 .signal__dot { width: 8px; height: 8px; border-radius: 50%; background: var(--brand-violet); }
 .signal__when { font-size: var(--fs-2xs); color: var(--text-faint); white-space: nowrap; }
+
+/* ── One-time code entry ────────────────────────────────────────────────── */
+
+/*
+ | Six boxes for a six-digit code. They shrink rather than wrap on narrow
+ | screens — a code split across two lines stops reading as one number.
+ */
+
+.code-input {
+    display: flex;
+    gap: var(--sp-2);
+    width: 100%;
+}
+
+.code-input__box {
+    flex: 1 1 0;
+    min-width: 0;
+    height: 56px;
+    padding: 0;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: var(--r-md);
+    color: var(--text-primary);
+    font-family: var(--font-mono);
+    font-size: var(--fs-lg);
+    font-weight: var(--fw-semi);
+    text-align: center;
+    transition: border-color var(--dur-fast) var(--ease-out),
+                box-shadow var(--dur-fast) var(--ease-out),
+                background var(--dur-fast) var(--ease-out);
+}
+
+.code-input__box:hover:not(:disabled) { border-color: var(--border-strong); }
+
+.code-input__box:focus {
+    outline: none;
+    border-color: var(--brand-violet);
+    background: var(--surface-1);
+    box-shadow: var(--glow-focus);
+}
+
+.code-input__box:disabled { opacity: .5; cursor: not-allowed; }
+
+.code-input--invalid .code-input__box { border-color: var(--status-critical); }
+
+/* The address the code went to, shown above the boxes so a typo in the
+   email is catchable without leaving the step. */
+.code-sent {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--sp-3);
+    padding: var(--sp-3) var(--sp-4);
+    border-radius: var(--r-md);
+    background: var(--brand-wash);
+    border: 1px solid rgba(127, 107, 240, .28);
+    font-size: var(--fs-xs);
+    color: var(--text-secondary);
+    line-height: 1.6;
+}
+
+.code-sent svg { flex: none; margin-top: 2px; color: var(--brand-violet-soft); }
+.code-sent strong { color: var(--text-primary); word-break: break-all; }
+
+.code-resend {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--sp-3);
+    flex-wrap: wrap;
+    font-size: var(--fs-xs);
+    color: var(--text-muted);
+}
+
+.code-resend__action {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    color: var(--brand-violet-soft);
+    font-size: var(--fs-xs);
+    font-weight: var(--fw-medium);
+}
+
+.code-resend__action:hover:not(:disabled) { text-decoration: underline; }
+.code-resend__action:disabled { color: var(--text-faint); cursor: not-allowed; }

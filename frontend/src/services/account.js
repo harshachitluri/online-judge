@@ -38,6 +38,48 @@ export const loginWithGoogle = async (credential) => {
     return data?.user;
 };
 
+/* ── One-time email codes ──────────────────────────────────────────────── */
+
+/*
+ | Two flows share these endpoints, distinguished by `purpose`:
+ |   · login — the code IS the credential; verifying it signs you in.
+ |   · reset — the code proves you own the inbox, and verifying it returns a
+ |     short-lived token that /auth/reset-password will accept.
+ |
+ | The request calls always resolve, even for an address with no account —
+ | the backend answers identically either way so this page can't be used to
+ | discover who is registered. `resendInSeconds` is the cooldown to gate the
+ | resend button with.
+ */
+
+/** Emails a 6-digit sign-in code. @returns {{expiresInSeconds, resendInSeconds}} */
+export const requestLoginCode = async (email) =>
+    unwrap(await client.post("/auth/request-code", { email }));
+
+/** Emails a 6-digit reset code (and a fallback link). */
+export const requestResetCode = async (email) =>
+    unwrap(await client.post("/auth/forgot-password", { email }));
+
+/** Exchanges a login code for a session. @returns the signed-in user */
+export const loginWithCode = async ({ email, code }) => {
+    const res = await client.post("/auth/verify-code", { email, code, purpose: "login" });
+    const data = unwrap(res);
+    if (data?.token) tokenStore.set(data.token);
+    return data?.user;
+};
+
+/** Exchanges a reset code for a reset token. @returns {{resetToken}} */
+export const verifyResetCode = async ({ email, code }) =>
+    unwrap(await client.post("/auth/verify-code", { email, code, purpose: "reset" }));
+
+/** Sets a new password using a token from either the email link or a code. */
+export const resetPassword = async ({ token, password }) => {
+    const res = await client.post("/auth/reset-password", { token, password });
+    const data = unwrap(res);
+    if (data?.token) tokenStore.set(data.token);
+    return data?.user;
+};
+
 export const logout = async () => {
     try {
         await client.post("/auth/logout");

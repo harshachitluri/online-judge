@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useRef, useEffect } from "react";
+import React, { useState, useMemo, useRef, useEffect, useCallback } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import * as Icons from "react-icons/lu";
@@ -8,9 +8,10 @@ import { BRAND, MODULE } from "../config/brand";
 import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
 import { errorMessage } from "../api/client";
-import client from "../api/client";
+import * as account from "../services/account";
 import {
-    Button, Card, Field, Input, PasswordInput, StrengthMeter, scorePassword
+    Button, Card, Field, Input, PasswordInput, StrengthMeter, scorePassword,
+    CodeInput, Segmented
 } from "../components/ui";
 import { Aurora } from "../components/shell/AppShell";
 import Logo, { Mark } from "../components/shell/Logo";
@@ -301,6 +302,94 @@ const ServerError = ({ message }) => (
     </AnimatePresence>
 );
 
+/* ── One-time codes ────────────────────────────────────────────────────── */
+
+/*
+ | Two flows here send a 6-digit code to an inbox: passwordless sign-in, and
+ | password recovery. The pieces below are shared between them so the code
+ | step looks and behaves identically in both — the same boxes, the same
+ | resend cooldown, the same "wrong address?" escape hatch.
+ */
+
+/** Ticks a countdown down to zero. Used to gate the resend button. */
+const useCountdown = () => {
+    const [remaining, setRemaining] = useState(0);
+
+    useEffect(() => {
+        if (remaining <= 0) return undefined;
+        const timer = setTimeout(() => setRemaining((n) => n - 1), 1000);
+        return () => clearTimeout(timer);
+    }, [remaining]);
+
+    return [remaining, setRemaining];
+};
+
+/**
+ * The code step's furniture: where it went, the boxes, and the resend row.
+ * The surrounding <form> and its submit button belong to the caller, since
+ * recovery submits a password alongside the code and sign-in does not.
+ */
+const CodeEntry = ({
+    email,
+    code,
+    onCode,
+    onComplete,
+    onResend,
+    onChangeEmail,
+    resendIn,
+    resending,
+    disabled,
+    invalid,
+    autoFocus = true
+}) => (
+    <div className="stack stack-4">
+        <div className="code-sent">
+            <Icons.LuMailCheck size={16} aria-hidden="true" />
+            <span>
+                If an account exists for <strong>{email}</strong>, a 6-digit code is
+                in that inbox. It expires in 10 minutes. Check spam if it hasn't
+                arrived within a minute.
+            </span>
+        </div>
+
+        <Field label="Verification code" required>
+            {(aria) => (
+                <CodeInput
+                    {...aria}
+                    value={code}
+                    onChange={onCode}
+                    onComplete={onComplete}
+                    disabled={disabled}
+                    invalid={invalid}
+                    autoFocus={autoFocus}
+                />
+            )}
+        </Field>
+
+        <div className="code-resend">
+            <button
+                type="button"
+                className="code-resend__action"
+                onClick={onChangeEmail}
+                disabled={disabled}
+            >
+                <Icons.LuArrowLeft size={12} aria-hidden="true" />
+                Wrong address?
+            </button>
+
+            <button
+                type="button"
+                className="code-resend__action"
+                onClick={onResend}
+                disabled={disabled || resending || resendIn > 0}
+            >
+                <Icons.LuRotateCw size={12} aria-hidden="true" />
+                {resendIn > 0 ? `Resend in ${resendIn}s` : resending ? "Sending…" : "Resend code"}
+            </button>
+        </div>
+    </div>
+);
+
 /*
  |==========================================================================
  | Enter — sign in
@@ -308,7 +397,7 @@ const ServerError = ({ message }) => (
  */
 
 export const Enter = () => {
-    const { login, loginWithGoogle } = useAuth();
+    const { login, loginWithGoogle, loginWithCode } = useAuth();
     const toast = useToast();
     const navigate = useNavigate();
     const [params] = useSearchParams();
@@ -316,12 +405,85 @@ export const Enter = () => {
     const [submitting, setSubmitting] = useState(false);
     const [googleBusy, setGoogleBusy] = useState(false);
 
+    // "password" or "code" — the two email-based ways in. Google sits above
+    // both because it is neither.
+    const [method, setMethod] = useState("password");
+
+    // The passwordless flow: request a code, then type it back.
+    const [codeStage, setCodeStage] = useState("request"); // request | verify
+    const [code, setCode] = useState("");
+    const [codeBusy, setCodeBusy] = useState(false);
+    const [resending, setResending] = useState(false);
+    const [codeError, setCodeError] = useState(null);
+    const [resendIn, setResendIn] = useCountdown();
+
     // Where the guard sent them from, so sign-in returns them there.
     const destination = params.get("from") || MODULE.deck.path;
 
     const form = useForm(
         { email: "", password: "" },
         { email: validators.email, password: validators.password }
+    );
+
+    const emailError = validators.email(form.values.email);
+
+    /* ── Passwordless ──────────────────────────────────────────────────── */
+
+    const sendCode = async ({ resend = false } = {}) => {
+        if (emailError) {
+            form.touchAll();
+            return;
+        }
+
+        resend ? setResending(true) : setCodeBusy(true);
+        setCodeError(null);
+
+        try {
+            const { resendInSeconds } = await account.requestLoginCode(form.values.email.trim());
+            setCodeStage("verify");
+            setCode("");
+            setResendIn(resendInSeconds || 60);
+
+            if (resend) toast.success("Code sent", "Check your inbox again.");
+        } catch (error) {
+            const status = error?.response?.status;
+            setCodeError(
+                status === 404
+                    ? "Sign-in codes aren't enabled on this deployment. Use your password instead."
+                    : errorMessage(error, "Could not send a code just now.")
+            );
+        } finally {
+            setResending(false);
+            setCodeBusy(false);
+        }
+    };
+
+    const submitCode = useCallback(
+        async (value) => {
+            const entered = value ?? code;
+            if (entered.length !== 6 || codeBusy) return;
+
+            setCodeBusy(true);
+            setCodeError(null);
+
+            try {
+                const user = await loginWithCode({
+                    email: form.values.email.trim(),
+                    code: entered
+                });
+
+                toast.success(`Welcome back, ${user.username}`, "Signed in with a one-time code.");
+                navigate(destination, { replace: true });
+            } catch (error) {
+                setCode("");
+                setCodeError(errorMessage(error, "That code could not be verified."));
+            } finally {
+                setCodeBusy(false);
+            }
+        },
+        // form.values.email is read through a ref-free closure on purpose:
+        // the email cannot change while the verify stage is open.
+        [code, codeBusy, loginWithCode, form.values.email, toast, navigate, destination]
     );
 
     const onSubmit = async (event) => {
@@ -367,7 +529,7 @@ export const Enter = () => {
                 <AsidePanel
                     points={[
                         { icon: "LuHistory", text: "Every submission you have ever made, kept" },
-                        { icon: "LuFlame", text: "Streaks continue from where you stopped" },
+                        { icon: "LuMailCheck", text: "No password? Sign in with a code sent to your email" },
                         { icon: "LuLock", text: "Sessions are httpOnly cookies, not localStorage tokens" }
                     ]}
                 />
@@ -383,57 +545,157 @@ export const Enter = () => {
 
                 <div className="divider-label">or with email</div>
 
-                <form className="stack stack-4" onSubmit={onSubmit} noValidate>
-                    <ServerError message={form.serverError} />
+                <Segmented
+                    items={[
+                        { id: "password", label: "Password", icon: Icons.LuKeyRound },
+                        { id: "code", label: "Email code", icon: Icons.LuMailCheck }
+                    ]}
+                    value={method}
+                    onChange={(next) => {
+                        setMethod(next);
+                        // Switching away mid-flow and back should start clean
+                        // rather than resume a half-entered code.
+                        setCodeStage("request");
+                        setCode("");
+                        setCodeError(null);
+                    }}
+                />
 
-                    <Field label="Email" error={form.errorFor("email")} required>
-                        {(aria) => (
-                            <Input
-                                {...aria}
-                                type="email"
-                                autoComplete="email"
-                                placeholder="you@domain.com"
-                                leadingIcon={Icons.LuMail}
-                                value={form.values.email}
-                                onChange={form.set("email")}
-                                onBlur={form.blur("email")}
-                                autoFocus
-                            />
-                        )}
-                    </Field>
+                {method === "password" ? (
+                    <form className="stack stack-4" onSubmit={onSubmit} noValidate>
+                        <ServerError message={form.serverError} />
 
-                    <Field
-                        label="Password"
-                        error={form.errorFor("password")}
-                        required
-                        optionalNote={
-                            <Link to="/recover" className="access__link">Forgot it?</Link>
-                        }
+                        <Field label="Email" error={form.errorFor("email")} required>
+                            {(aria) => (
+                                <Input
+                                    {...aria}
+                                    type="email"
+                                    autoComplete="email"
+                                    placeholder="you@domain.com"
+                                    leadingIcon={Icons.LuMail}
+                                    value={form.values.email}
+                                    onChange={form.set("email")}
+                                    onBlur={form.blur("email")}
+                                    autoFocus
+                                />
+                            )}
+                        </Field>
+
+                        <Field
+                            label="Password"
+                            error={form.errorFor("password")}
+                            required
+                            optionalNote={
+                                <Link to="/recover" className="access__link">Forgot it?</Link>
+                            }
+                        >
+                            {(aria) => (
+                                <PasswordInput
+                                    {...aria}
+                                    autoComplete="current-password"
+                                    placeholder="••••••••"
+                                    value={form.values.password}
+                                    onChange={form.set("password")}
+                                    onBlur={form.blur("password")}
+                                />
+                            )}
+                        </Field>
+
+                        <Button
+                            as="button"
+                            type="submit"
+                            variant="primary"
+                            size="lg"
+                            block
+                            loading={submitting || googleBusy}
+                            trailingIcon={Icons.LuArrowRight}
+                        >
+                            Sign in
+                        </Button>
+                    </form>
+                ) : (
+                    <form
+                        className="stack stack-4"
+                        onSubmit={(event) => {
+                            event.preventDefault();
+                            codeStage === "request" ? sendCode() : submitCode();
+                        }}
+                        noValidate
                     >
-                        {(aria) => (
-                            <PasswordInput
-                                {...aria}
-                                autoComplete="current-password"
-                                placeholder="••••••••"
-                                value={form.values.password}
-                                onChange={form.set("password")}
-                                onBlur={form.blur("password")}
-                            />
-                        )}
-                    </Field>
+                        <ServerError message={codeError} />
 
-                    <Button
-                        as="button"
-                        type="submit"
-                        variant="primary"
-                        size="lg"
-                        block
-                        loading={submitting || googleBusy}
-                        trailingIcon={Icons.LuArrowRight}
-                    >
-                        Sign in
-                    </Button>
-                </form>
+                        {codeStage === "request" ? (
+                            <>
+                                <Field
+                                    label="Email"
+                                    hint="We'll send a 6-digit code. No password needed."
+                                    error={form.errorFor("email")}
+                                    required
+                                >
+                                    {(aria) => (
+                                        <Input
+                                            {...aria}
+                                            type="email"
+                                            autoComplete="email"
+                                            placeholder="you@domain.com"
+                                            leadingIcon={Icons.LuMail}
+                                            value={form.values.email}
+                                            onChange={form.set("email")}
+                                            onBlur={form.blur("email")}
+                                            autoFocus
+                                        />
+                                    )}
+                                </Field>
+
+                                <Button
+                                    as="button"
+                                    type="submit"
+                                    variant="primary"
+                                    size="lg"
+                                    block
+                                    loading={codeBusy}
+                                    trailingIcon={Icons.LuSend}
+                                >
+                                    Email me a code
+                                </Button>
+                            </>
+                        ) : (
+                            <>
+                                <CodeEntry
+                                    email={form.values.email.trim()}
+                                    code={code}
+                                    onCode={setCode}
+                                    // Six digits in means there is nothing left to
+                                    // decide — verifying on completion saves a click.
+                                    onComplete={submitCode}
+                                    onResend={() => sendCode({ resend: true })}
+                                    onChangeEmail={() => {
+                                        setCodeStage("request");
+                                        setCode("");
+                                        setCodeError(null);
+                                    }}
+                                    resendIn={resendIn}
+                                    resending={resending}
+                                    disabled={codeBusy}
+                                    invalid={Boolean(codeError)}
+                                />
+
+                                <Button
+                                    as="button"
+                                    type="submit"
+                                    variant="primary"
+                                    size="lg"
+                                    block
+                                    disabled={code.length !== 6}
+                                    loading={codeBusy}
+                                    trailingIcon={Icons.LuArrowRight}
+                                >
+                                    Verify and sign in
+                                </Button>
+                            </>
+                        )}
+                    </form>
+                )}
             </Card>
         </AccessFrame>
     );
@@ -642,32 +904,126 @@ export const Join = () => {
  */
 
 export const Recover = () => {
+    const navigate = useNavigate();
+    const toast = useToast();
+    const { refresh } = useAuth();
+
     const [email, setEmail] = useState("");
     const [touched, setTouched] = useState(false);
-    const [state, setState] = useState("idle"); // idle | sending | sent | unavailable | error
+
+    // request → the email form; verify → code + new password; done/unavailable
+    // are terminal.
+    const [stage, setStage] = useState("request");
+    const [busy, setBusy] = useState(false);
+    const [resending, setResending] = useState(false);
     const [detail, setDetail] = useState(null);
+    const [resendIn, setResendIn] = useCountdown();
+
+    const [code, setCode] = useState("");
+
+    // Held once the code has been exchanged. The code is spent by that
+    // exchange, so if the password step then fails (too short, network), a
+    // retry must reuse this token rather than re-verifying a dead code.
+    const [resetToken, setResetToken] = useState(null);
+
+    const passwords = useForm(
+        { password: "", confirm: "" },
+        {
+            password: validators.password,
+            confirm: (value, values) => {
+                if (!value) return "Repeat your new password.";
+                if (value !== values.password) return "The two passwords don't match.";
+                return null;
+            }
+        }
+    );
 
     const error = touched ? validators.email(email) : undefined;
 
-    const onSubmit = async (event) => {
-        event.preventDefault();
+    const sendCode = async ({ resend = false } = {}) => {
         setTouched(true);
         if (validators.email(email)) return;
 
-        setState("sending");
+        resend ? setResending(true) : setBusy(true);
+        setDetail(null);
 
         try {
-            await client.post("/auth/forgot-password", { email: email.trim() });
-            setState("sent");
+            const { resendInSeconds } = await account.requestResetCode(email.trim());
+            setStage("verify");
+            setCode("");
+            setResetToken(null);
+            setResendIn(resendInSeconds || 60);
+
+            if (resend) toast.success("Code sent", "Check your inbox again.");
         } catch (err) {
             const status = err?.response?.status;
 
             if (status === 404 || status === 501) {
-                setState("unavailable");
+                setStage("unavailable");
             } else {
-                setState("error");
                 setDetail(errorMessage(err, "The request could not be completed."));
             }
+        } finally {
+            setResending(false);
+            setBusy(false);
+        }
+    };
+
+    /*
+     | The code and the new password are collected on one screen, but they are
+     | still two calls: verify-code exchanges the code for a short-lived reset
+     | token, and reset-password spends it. Doing both on submit means someone
+     | who mistypes the code doesn't lose the password they just typed.
+     */
+    const onReset = async (event) => {
+        event.preventDefault();
+        passwords.touchAll();
+
+        if (code.length !== 6) {
+            setDetail("Enter the 6-digit code from your email.");
+            return;
+        }
+        if (!passwords.isValid) return;
+
+        setBusy(true);
+        setDetail(null);
+
+        try {
+            let token = resetToken;
+
+            if (!token) {
+                ({ resetToken: token } = await account.verifyResetCode({
+                    email: email.trim(),
+                    code
+                }));
+                setResetToken(token);
+            }
+
+            const user = await account.resetPassword({
+                token,
+                password: passwords.values.password
+            });
+
+            // The backend issues a session on a successful reset — pick it up
+            // so this device isn't treated as signed out.
+            await refresh();
+            setStage("done");
+            toast.success("Password updated", user ? `Signed in as ${user.username}.` : undefined);
+        } catch (err) {
+            // Only clear the boxes when it was the code that was rejected —
+            // wiping them after a password-side failure would leave someone
+            // re-typing a code that is already accepted.
+            if (!resetToken) setCode("");
+            setDetail(
+                errorMessage(
+                    err,
+                    resetToken
+                        ? "That password could not be set."
+                        : "That code is incorrect or has expired."
+                )
+            );
+        } finally {
+            setBusy(false);
         }
     };
 
@@ -675,11 +1031,11 @@ export const Recover = () => {
         <AccessFrame
             eyebrow={<><Icons.LuLifeBuoy size={13} /> Recovery</>}
             title="Recover your access"
-            description="Enter the email on your account and we'll send a reset link if one can be issued."
+            description="We'll email a 6-digit verification code to the address on your account — enter it here with a new password."
             aside={
                 <AsidePanel
                     points={[
-                        { icon: "LuShieldCheck", text: "Reset links are single-use and short-lived" },
+                        { icon: "LuShieldCheck", text: "Codes are single-use and expire in 10 minutes" },
                         { icon: "LuMailCheck", text: "We never reveal whether an address is registered" },
                         { icon: "LuKeyRound", text: "Signed in with Google? Use the Google button instead" }
                     ]}
@@ -692,24 +1048,28 @@ export const Recover = () => {
             }
         >
             <Card size="lg">
-                {state === "sent" ? (
+                {stage === "done" ? (
                     <motion.div
                         className="stack stack-4"
                         initial={{ opacity: 0, y: 8 }}
                         animate={{ opacity: 1, y: 0 }}
                     >
                         <span className="access__result access__result--good">
-                            <Icons.LuMailCheck size={22} aria-hidden="true" />
+                            <Icons.LuCircleCheck size={22} aria-hidden="true" />
                         </span>
-                        <h2 style={{ fontSize: "var(--fs-lg)" }}>Check your inbox</h2>
+                        <h2 style={{ fontSize: "var(--fs-lg)" }}>Password updated</h2>
                         <p className="text-muted" style={{ fontSize: "var(--fs-sm)" }}>
-                            If <strong>{email}</strong> is attached to an account, a reset link
-                            is on its way. It expires shortly, so use it soon. Nothing arrives
-                            if the address isn't registered — that's deliberate.
+                            Your password has been changed and you're signed in on this device.
+                            The old password stopped working the moment this went through.
                         </p>
-                        <Button variant="secondary" to="/enter">Back to sign in</Button>
+                        <Button
+                            variant="primary"
+                            onClick={() => navigate(MODULE.deck.path, { replace: true })}
+                        >
+                            Go to your Dashboard
+                        </Button>
                     </motion.div>
-                ) : state === "unavailable" ? (
+                ) : stage === "unavailable" ? (
                     <motion.div
                         className="stack stack-4"
                         initial={{ opacity: 0, y: 8 }}
@@ -728,11 +1088,89 @@ export const Recover = () => {
                         </p>
                         <Button variant="secondary" to="/enter">Back to sign in</Button>
                     </motion.div>
-                ) : (
-                    <form className="stack stack-4" onSubmit={onSubmit} noValidate>
-                        <ServerError message={state === "error" ? detail : null} />
+                ) : stage === "verify" ? (
+                    <form className="stack stack-5" onSubmit={onReset} noValidate>
+                        <ServerError message={detail} />
 
-                        <Field label="Account email" error={error} required>
+                        <CodeEntry
+                            email={email.trim()}
+                            code={code}
+                            onCode={setCode}
+                            onResend={() => sendCode({ resend: true })}
+                            onChangeEmail={() => {
+                                setStage("request");
+                                setCode("");
+                                setResetToken(null);
+                                setDetail(null);
+                            }}
+                            resendIn={resendIn}
+                            resending={resending}
+                            disabled={busy}
+                            invalid={Boolean(detail) && !resetToken}
+                        />
+
+                        <hr className="hairline" />
+
+                        <Field label="New password" error={passwords.errorFor("password")} required>
+                            {(aria) => (
+                                <div className="stack stack-3">
+                                    <PasswordInput
+                                        {...aria}
+                                        autoComplete="new-password"
+                                        placeholder="At least 6 characters"
+                                        value={passwords.values.password}
+                                        onChange={passwords.set("password")}
+                                        onBlur={passwords.blur("password")}
+                                    />
+                                    {passwords.values.password && (
+                                        <StrengthMeter password={passwords.values.password} />
+                                    )}
+                                </div>
+                            )}
+                        </Field>
+
+                        <Field label="Confirm new password" error={passwords.errorFor("confirm")} required>
+                            {(aria) => (
+                                <PasswordInput
+                                    {...aria}
+                                    autoComplete="new-password"
+                                    placeholder="Repeat it"
+                                    value={passwords.values.confirm}
+                                    onChange={passwords.set("confirm")}
+                                    onBlur={passwords.blur("confirm")}
+                                />
+                            )}
+                        </Field>
+
+                        <Button
+                            as="button"
+                            type="submit"
+                            variant="primary"
+                            size="lg"
+                            block
+                            loading={busy}
+                            trailingIcon={Icons.LuArrowRight}
+                        >
+                            Set new password
+                        </Button>
+                    </form>
+                ) : (
+                    <form
+                        className="stack stack-4"
+                        onSubmit={(event) => {
+                            event.preventDefault();
+                            sendCode();
+                        }}
+                        noValidate
+                    >
+                        <ServerError message={detail} />
+
+                        <Field
+                            label="Account email"
+                            hint="The code arrives within a minute. A reset link is in the same email, for when you're on another device."
+                            error={error}
+                            required
+                        >
                             {(aria) => (
                                 <Input
                                     {...aria}
@@ -754,10 +1192,10 @@ export const Recover = () => {
                             variant="primary"
                             size="lg"
                             block
-                            loading={state === "sending"}
+                            loading={busy}
                             trailingIcon={Icons.LuSend}
                         >
-                            Send reset link
+                            Email me a code
                         </Button>
                     </form>
                 )}
@@ -805,7 +1243,7 @@ export const ResetPassword = () => {
 
         setSubmitting(true);
         try {
-            const res = await client.post("/auth/reset-password", {
+            const user = await account.resetPassword({
                 token,
                 password: form.values.password
             });
@@ -813,7 +1251,6 @@ export const ResetPassword = () => {
             // reset — refresh AuthContext so the app picks it up immediately
             // rather than treating this device as signed out until the next
             // page load.
-            const user = res?.data?.data?.user;
             await refresh();
             setDone(true);
             if (user) toast.success("Password reset", `Signed in as ${user.username}.`);
