@@ -5,7 +5,7 @@ import * as Icons from "react-icons/lu";
 import { analyseComplexity, reviewCode, generateHints } from "../../services/sage";
 import { askAssistant } from "../../services/ai";
 import { errorMessage } from "../../api/client";
-import { Button, Badge, Card, EmptyState } from "../ui";
+import { Button, Badge, Card, EmptyState, Markdown } from "../ui";
 import { staggerParent, riseChild } from "../../lib/motion";
 
 /*
@@ -263,7 +263,7 @@ export const HintsPanel = ({ problem, code, language }) => {
                             <span className="hint__level">{i + 1}</span>
                             <span className="hint__label">AI hint</span>
                         </div>
-                        <p className="hint__text">{text}</p>
+                        <Markdown className="hint__text">{text}</Markdown>
                     </div>
                 ))}
 

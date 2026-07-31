@@ -8,7 +8,7 @@ import { useAuth } from "../context/AuthContext";
 import { useLocalStorage } from "../hooks";
 import { errorMessage } from "../api/client";
 import { runnableOnly, RUNNABLE_LANGUAGES, languageMeta, FALLBACK_STARTER } from "../lib/domain";
-import { Card, Button, Badge, Avatar, Input, TextArea, Select, Segmented, Spinner } from "../components/ui";
+import { Card, Button, Badge, Avatar, Input, TextArea, Select, Segmented, Spinner, Markdown } from "../components/ui";
 import { PageHeader } from "../components/shell/AppShell";
 import { ComplexityPanel, ReviewPanel } from "../components/forge/SagePanel";
 import { Mark } from "../components/shell/Logo";
@@ -40,7 +40,12 @@ const SUGGESTIONS = [
 
 /* ── Message rendering ─────────────────────────────────────────────────── */
 
-const Reply = ({ reply }) => <p>{reply.text}</p>;
+/*
+ | Replies arrive as Markdown. Rendering the raw string would show the
+ | syntax itself — `**bold**`, stray `-` bullets, un-fenced code — so it
+ | goes through the Markdown renderer instead.
+ */
+const Reply = ({ reply }) => <Markdown>{reply.text}</Markdown>;
 
 /* ── Page ──────────────────────────────────────────────────────────────── */
 

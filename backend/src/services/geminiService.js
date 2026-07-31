@@ -24,9 +24,12 @@ const getModel = () => {
     return client.getGenerativeModel({
         model: process.env.GEMINI_MODEL || "gemini-2.0-flash",
         generationConfig: {
-            // Kept tight: this is a coding assistant reply, not an essay,
-            // and a hard ceiling bounds both latency and API cost per call.
-            maxOutputTokens: 1024,
+            // Bounded, but with enough room that a structured answer — a few
+            // findings plus a fenced code block — isn't cut off mid-sentence.
+            // A truncated reply is worse than a shorter one, and the prompt
+            // already asks for brevity, so this ceiling is a safety net
+            // rather than the thing shaping the length.
+            maxOutputTokens: 2048,
             temperature: 0.4
         }
     });

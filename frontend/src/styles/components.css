@@ -910,3 +910,163 @@ kbd,
     height: 1px;
     background: var(--border);
 }
+
+/* ── Markdown ───────────────────────────────────────────────────────────── */
+
+/*
+ | The rendered form of an AI Assistant reply. Spacing is tighter than page
+ | prose because these blocks sit inside a chat bubble, not a document — the
+ | first and last child shed their margins so the bubble padding is the only
+ | padding.
+ */
+
+.md {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-3);
+    font-size: var(--fs-sm);
+    line-height: 1.65;
+    min-width: 0;
+}
+
+.md > *:first-child { margin-top: 0; }
+.md > *:last-child  { margin-bottom: 0; }
+
+.md__p { margin: 0; }
+
+.md__h {
+    margin: var(--sp-1) 0 0;
+    font-weight: var(--fw-semi);
+    letter-spacing: var(--tracking-tight);
+    color: var(--text-primary);
+}
+
+.md__h--1, .md__h--2 { font-size: var(--fs-md); }
+.md__h--3 { font-size: var(--fs-base); }
+.md__h--4, .md__h--5, .md__h--6 {
+    font-size: var(--fs-xs);
+    text-transform: uppercase;
+    letter-spacing: var(--tracking-wide);
+    color: var(--text-muted);
+}
+
+.md__list {
+    margin: 0;
+    padding-left: 1.25rem;
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-2);
+}
+
+.md__list--ul { list-style: disc; }
+.md__list--ol { list-style: decimal; }
+.md__list li::marker { color: var(--brand-violet-soft); }
+.md__list li { padding-left: 2px; }
+
+.md__quote {
+    margin: 0;
+    padding: var(--sp-2) var(--sp-3);
+    border-left: 2px solid var(--brand-violet-soft);
+    background: var(--brand-wash);
+    border-radius: 0 var(--r-sm) var(--r-sm) 0;
+    color: var(--text-secondary);
+}
+
+.md__rule {
+    margin: var(--sp-1) 0;
+    border: 0;
+    border-top: 1px solid var(--border);
+}
+
+.md__link { color: var(--brand-violet-soft); text-decoration: underline; }
+
+/* Inline code sits inside a sentence, so it takes a wash rather than a
+   full box — a border here would break the line's rhythm. */
+.md__code {
+    padding: 1px 5px;
+    border-radius: 5px;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    font-family: var(--font-mono);
+    font-size: 0.92em;
+    color: var(--text-primary);
+    word-break: break-word;
+}
+
+/* ── Fenced code ── */
+
+.md__block {
+    border: 1px solid var(--border);
+    border-radius: var(--r-md);
+    background: var(--plane);
+    overflow: hidden;
+}
+
+.md__block-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--sp-3);
+    padding: var(--sp-1) var(--sp-2) var(--sp-1) var(--sp-3);
+    background: var(--surface-2);
+    border-bottom: 1px solid var(--border);
+}
+
+.md__block-lang {
+    font-size: var(--fs-2xs);
+    font-family: var(--font-mono);
+    text-transform: uppercase;
+    letter-spacing: var(--tracking-wide);
+    color: var(--text-faint);
+}
+
+.md__copy {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 3px var(--sp-2);
+    border-radius: var(--r-sm);
+    font-size: var(--fs-2xs);
+    color: var(--text-muted);
+    transition: background var(--dur-fast) var(--ease-out),
+                color var(--dur-fast) var(--ease-out);
+}
+
+.md__copy:hover { background: var(--surface-1); color: var(--text-primary); }
+
+/* Long lines scroll inside the block. Wrapping code changes what it means
+   to read it, so the horizontal scrollbar is the correct trade. */
+.md__pre {
+    margin: 0;
+    padding: var(--sp-3);
+    overflow-x: auto;
+    font-family: var(--font-mono);
+    font-size: var(--fs-xs);
+    line-height: 1.6;
+    color: var(--text-primary);
+    tab-size: 4;
+}
+
+/* ── Tables ── */
+
+.md__table-wrap { overflow-x: auto; }
+
+.md__table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: var(--fs-xs);
+}
+
+.md__table th,
+.md__table td {
+    padding: var(--sp-2) var(--sp-3);
+    border: 1px solid var(--border);
+    text-align: left;
+    vertical-align: top;
+}
+
+.md__table th {
+    background: var(--surface-2);
+    font-weight: var(--fw-semi);
+    white-space: nowrap;
+}

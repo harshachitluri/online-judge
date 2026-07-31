@@ -26,5 +26,7 @@ export {
     Spinner, RouteFallback, EmptyState, ErrorState
 } from "./Feedback";
 
+export { default as CodeInput } from "./CodeInput";
+export { default as Markdown } from "./Markdown";
 export { Modal, ConfirmDialog, Drawer } from "./Overlay";
 export { Tabs, TabPanel, Segmented, Avatar, avatarGradient, ProgressBar } from "./Nav";
