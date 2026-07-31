@@ -101,7 +101,10 @@ EOF
     npm install
     # CI=true turns warnings into errors on some setups; this is a deploy,
     # not a lint gate.
-    CI=false npm run build
+    # GENERATE_SOURCEMAP=false: source map generation is one of the more
+    # memory-hungry parts of a CRA build, and nobody is debugging minified
+    # production JS via a map on a t3.micro anyway.
+    CI=false GENERATE_SOURCEMAP=false npm run build
 )
 
 echo "==> Restarting API"
