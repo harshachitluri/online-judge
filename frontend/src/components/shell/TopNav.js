@@ -36,18 +36,33 @@ const AccountMenu = ({ user, isAdmin, onLogout }) => {
     useClickOutside(ref, () => setOpen(false), open);
     useEffect(() => setOpen(false), [location.pathname]);
 
+    /* Escape closes it, and focus returns to the trigger — otherwise the
+       tab order restarts at the top of the page. */
+    useEffect(() => {
+        if (!open) return;
+
+        const onKey = (event) => {
+            if (event.key !== "Escape") return;
+            setOpen(false);
+            ref.current?.querySelector(".menu__trigger")?.focus();
+        };
+
+        window.addEventListener("keydown", onKey);
+        return () => window.removeEventListener("keydown", onKey);
+    }, [open]);
+
     return (
         <div className="menu" ref={ref}>
             <button
                 type="button"
-                className="menu__trigger"
+                className={`menu__trigger ${open ? "menu__trigger--open" : ""}`}
                 onClick={() => setOpen((o) => !o)}
                 aria-expanded={open}
                 aria-haspopup="menu"
                 aria-label="Account menu"
             >
                 <Avatar name={user?.username} size="sm" />
-                <Icons.LuChevronDown size={13} aria-hidden="true" />
+                <Icons.LuChevronDown size={13} className="menu__chevron" aria-hidden="true" />
             </button>
 
             <AnimatePresence>

@@ -22,18 +22,23 @@ export const EASE_IN_OUT = [0.65, 0, 0.35, 1];
  | navigation starts to feel like it's fighting the user. The exit is
  | deliberately shorter than the entrance so back-to-back clicks stay snappy.
  */
+/*
+ | Deliberately no `filter: blur()` here. Framer leaves the settled value on
+ | the element as `blur(0px)`, and a non-none filter makes the page both a
+ | stacking context and a *backdrop root* — which is what pushed the account
+ | dropdown's glass panel behind the page content instead of over it. The
+ | transition reads the same without it, and costs far less to composite.
+ */
 export const pageVariants = {
-    initial: { opacity: 0, y: 12, filter: "blur(4px)" },
+    initial: { opacity: 0, y: 12 },
     animate: {
         opacity: 1,
         y: 0,
-        filter: "blur(0px)",
         transition: { duration: 0.34, ease: EASE_OUT }
     },
     exit: {
         opacity: 0,
         y: -8,
-        filter: "blur(4px)",
         transition: { duration: 0.18, ease: EASE_IN_OUT }
     }
 };

@@ -142,7 +142,10 @@
 .topnav {
     position: sticky;
     top: 0;
-    z-index: var(--z-nav);
+    /* The bar itself only needs --z-nav, but it is the stacking context the
+       account dropdown lives in — so the whole bar has to outrank page
+       content for the panel to paint over it. Still below overlays. */
+    z-index: var(--z-dropdown);
     background: transparent;
     transition: background var(--dur-base) var(--ease-out),
                 border-color var(--dur-base) var(--ease-out),
@@ -322,7 +325,9 @@
 
 /* ── Account menu ───────────────────────────────────────────────────────── */
 
-.menu { position: relative; }
+/* isolation keeps the trigger and panel in one predictable stacking context
+   of their own, independent of whatever the bar's neighbours do. */
+.menu { position: relative; isolation: isolate; }
 
 .menu__trigger {
     display: inline-flex;
@@ -336,7 +341,19 @@
     transition: border-color var(--dur-fast) var(--ease-out);
 }
 
-.menu__trigger:hover { border-color: var(--border-strong); }
+.menu__trigger:hover { border-color: var(--border-strong); color: var(--text-secondary); }
+
+.menu__trigger--open {
+    border-color: var(--border-strong);
+    background: var(--surface-1);
+}
+
+.menu__chevron {
+    transition: transform var(--dur-fast) var(--ease-out);
+    flex: none;
+}
+
+.menu__trigger--open .menu__chevron { transform: rotate(180deg); }
 
 .menu__panel {
     position: absolute;
@@ -346,11 +363,16 @@
     z-index: var(--z-dropdown);
     padding: var(--sp-2);
     border-radius: var(--r-lg);
-    background: var(--glass-bg);
+    /* Opaque, not glass. A translucent panel over a dense page reads as if
+       it is *behind* the content showing through it — and backdrop-filter
+       silently stops blurring altogether once any ancestor is a backdrop
+       root. A solid surface is legible in every case. */
+    background: var(--surface-1);
     border: 1px solid var(--border-strong);
-    -webkit-backdrop-filter: var(--glass-blur);
-    backdrop-filter: var(--glass-blur);
     box-shadow: var(--shadow-xl);
+    /* Grow from the trigger it belongs to, not from its own centre. */
+    transform-origin: top right;
+    overflow: hidden;
 }
 
 .menu__identity {
@@ -358,10 +380,13 @@
     align-items: center;
     gap: var(--sp-3);
     padding: var(--sp-3);
+    border-radius: var(--r-md);
+    background: var(--surface-2);
 }
 
 .menu__rule {
     margin: var(--sp-2) 0;
+    border: 0;
     border-top: 1px solid var(--border);
 }
 
@@ -379,7 +404,10 @@
                 color var(--dur-fast) var(--ease-out);
 }
 
+.menu__item svg { color: var(--text-faint); flex: none; }
+
 .menu__item:hover { background: var(--surface-2); color: var(--text-primary); }
+.menu__item:hover svg { color: currentColor; }
 
 .menu__item--danger:hover {
     background: var(--critical-wash);
