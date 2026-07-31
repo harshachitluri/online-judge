@@ -41,6 +41,10 @@ const FORMAT_RULES =
     `- Put every code snippet in a fenced block with its language tag ` +
     `(\`\`\`cpp, \`\`\`python, …). Never indent code as plain text.\n` +
     `- Use \`backticks\` for identifiers, function names, values and complexities like \`O(n log n)\`.\n` +
+    `- NEVER use LaTeX or math markup. There is no math renderer — \`$\\mathcal{O}(N)$\` ` +
+    `reaches the reader as those literal characters. Write complexity as plain \`O(n)\`, ` +
+    `\`O(n log n)\`, \`O(1)\` in backticks. No \`$\`, no \`\\(\`, no \`\\mathcal\`, no \`\\frac\`, ` +
+    `no \`\\times\` — write "×" or "*" directly.\n` +
     `- Use **bold** for the handful of words that carry the answer, not for whole sentences.\n` +
     `- A comparison of two or more options belongs in a small table.\n` +
     `- Keep it tight: aim for under 250 words unless the question genuinely needs more. ` +

@@ -23,6 +23,8 @@ import * as Icons from "react-icons/lu";
 const INLINE_PATTERN = new RegExp(
     [
         "`[^`\\n]+`",                 // `code`
+        "\\$\\$?[^$\\n]+\\$\\$?",     // $O(n)$ — LaTeX, see below
+        "\\\\\\([^)\\n]*\\)",         // \(O(n)\) — the other LaTeX delimiter
         "\\*\\*[^*\\n]+\\*\\*",       // **bold**
         "__[^_\\n]+__",               // __bold__
         "\\*[^*\\n]+\\*",             // *italic*
@@ -31,6 +33,45 @@ const INLINE_PATTERN = new RegExp(
     ].join("|"),
     "g"
 );
+
+/*
+ | The model is told not to emit LaTeX (there is no math renderer here), but
+ | "told not to" is not "will not" — complexity notation is where it reaches
+ | for $\mathcal{O}(N)$ out of habit. Rather than print the raw source at the
+ | reader, unwrap it to the plain notation it was standing in for.
+ |
+ | Only two shapes are treated as math: something containing a backslash
+ | command, or something with no spaces at all. That leaves ordinary prose
+ | like "$5 and $10" alone, which a looser rule would mangle into a formula.
+ */
+const looksLikeMath = (body) => body.includes("\\") || !/\s/.test(body);
+
+const GREEK = {
+    alpha: "α", beta: "β", gamma: "γ", delta: "δ", epsilon: "ε",
+    theta: "θ", lambda: "λ", mu: "μ", pi: "π", sigma: "σ", omega: "ω"
+};
+
+const plainMath = (body) =>
+    body
+        // \mathcal{O} → O, \text{foo} → foo, and friends: the wrapper only
+        // ever carried a typeface, which this renderer has no use for.
+        .replace(
+            /\\(?:mathcal|mathbb|mathrm|mathbf|mathit|mathsf|text|textit|textbf|operatorname)\s*\{([^{}]*)\}/g,
+            "$1"
+        )
+        .replace(/\\(?:left|right|displaystyle|limits)\b/g, "")
+        .replace(/\\frac\s*\{([^{}]*)\}\s*\{([^{}]*)\}/g, "($1)/($2)")
+        .replace(/\\sqrt\s*\{([^{}]*)\}/g, "√($1)")
+        .replace(/\\(times|cdot|leq|geq|neq|approx|infty|ldots|dots|log|ln|max|min|sum|in)\b/g,
+            (_, name) => ({
+                times: "×", cdot: "·", leq: "≤", geq: "≥", neq: "≠",
+                approx: "≈", infty: "∞", ldots: "…", dots: "…",
+                log: "log", ln: "ln", max: "max", min: "min", sum: "Σ", in: "∈"
+            }[name]))
+        .replace(/\\([a-zA-Z]+)/g, (whole, name) => GREEK[name] ?? name)
+        .replace(/[{}]/g, "")
+        .replace(/\s+/g, " ")
+        .trim();
 
 /* Only schemes that can't execute script. Anything else renders as plain
    text — a model-authored `javascript:` link is not worth the risk. */
@@ -55,6 +96,20 @@ const renderInline = (text, keyPrefix = "i") => {
 
         if (token.startsWith("`")) {
             nodes.push(<code key={key} className="md__code">{token.slice(1, -1)}</code>);
+        } else if (token.startsWith("$") || token.startsWith("\\(")) {
+            // Rendered as code, which is where complexities belong anyway —
+            // the same treatment `O(n log n)` in backticks would have got.
+            const body = token.startsWith("\\(")
+                ? token.slice(2, -2)
+                : token.replace(/^\$\$?|\$\$?$/g, "");
+
+            nodes.push(
+                looksLikeMath(body) ? (
+                    <code key={key} className="md__code">{plainMath(body)}</code>
+                ) : (
+                    token
+                )
+            );
         } else if (token.startsWith("**") || token.startsWith("__")) {
             nodes.push(<strong key={key}>{token.slice(2, -2)}</strong>);
         } else if (token.startsWith("~~")) {
