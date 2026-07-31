@@ -97,9 +97,22 @@ const compileCode = async (language, sourceCode) => {
     try {
         return await compileForLanguage(language, jobId, filePath);
     } catch (error) {
+        /*
+         | Clean up here, not in the caller. Both callers wrap this in
+         | try/finally and clean up by jobId — but they only learn the jobId
+         | from a *successful* return, so on a compile error their `jobId`
+         | is still null and the finally block does nothing. Every failed
+         | compilation leaked its source file (and, for Java, a whole
+         | directory) permanently.
+         */
+        cleanupJob(jobId, language);
+
         throw {
             type: error.type || "Compilation Error",
-            message: sanitizeCompilerMessage(error.message, jobId)
+            message: sanitizeCompilerMessage(error.message, jobId),
+            // Exposed so a caller that wants to clean up itself can, even
+            // though none needs to now.
+            jobId
         };
     }
 
@@ -207,4 +220,53 @@ const cleanupJob = (jobId, language) => {
 
 };
 
-module.exports = { compileCode, runCode, cleanupJob };
+/*
+ | Per-job cleanup covers the normal path, but nothing survives a hard stop:
+ | a crash, a `kill -9`, or a nodemon restart mid-compile leaves the job's
+ | files behind with no one left to remove them. This sweeps whatever is old
+ | enough that it cannot belong to a running job.
+ |
+ | One hour is far beyond any job's lifetime — compilation is capped at 20
+ | seconds and every run has a time limit — so this can never race a live
+ | submission.
+ */
+const STALE_AFTER_MS = 60 * 60 * 1000;
+
+const sweepTempArtifacts = (maxAgeMs = STALE_AFTER_MS) => {
+
+    const cutoff = Date.now() - maxAgeMs;
+    let removed = 0;
+
+    for (const dir of [codeDir, outputDir]) {
+
+        let entries;
+
+        try {
+            entries = fs.readdirSync(dir);
+        } catch {
+            continue; // directory not created yet — nothing to sweep
+        }
+
+        for (const entry of entries) {
+            const target = path.join(dir, entry);
+
+            try {
+                if (fs.statSync(target).mtimeMs > cutoff) continue;
+
+                fs.rmSync(target, { recursive: true, force: true });
+                removed += 1;
+            } catch {
+                // Raced with a live job, or unreadable. Best-effort by design.
+            }
+        }
+    }
+
+    if (removed > 0) {
+        console.log(`[compilerService] Swept ${removed} stale temp artifact(s).`);
+    }
+
+    return removed;
+
+};
+
+module.exports = { compileCode, runCode, cleanupJob, sweepTempArtifacts };

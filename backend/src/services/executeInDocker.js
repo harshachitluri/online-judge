@@ -175,8 +175,11 @@ const compileDockerCpp = async (filePath, jobId) => {
         "-v", `${absFilePath}:/code/main.cpp:ro`,
         "-v", `${absOutputDir}:/output`,
         DOCKER_IMAGE,
-        // g++ compiles to /output/{jobId}; error messages go to stderr
-        "sh", "-c", `g++ /code/main.cpp -O2 -o /output/${jobId} 2>&1`
+        // g++ compiles to /output/{jobId}; error messages go to stderr.
+        // -std=gnu++17 matches the host path in executeCpp.js — a submission
+        // must not compile in development and fail in the container because
+        // the two disagree about the language level.
+        "sh", "-c", `g++ -std=gnu++17 /code/main.cpp -O2 -o /output/${jobId} 2>&1`
     ];
 
     await compileInContainer(args);

@@ -22,6 +22,7 @@ const aiRoutes = require("./routes/aiRoutes");
 /* ── Worker & Middleware ────────────────────────────────────────────── */
 
 const judgeWorker = require("./workers/judgeWorker");
+const { sweepTempArtifacts } = require("./services/compilerService");
 const errorHandler = require("./middleware/errorMiddleware");
 
 const app = express();
@@ -105,6 +106,15 @@ const startServer = async () => {
         app.listen(PORT, () => {
             console.log(`Server running on port ${PORT}`);
             judgeWorker();
+
+            /*
+             | Anything left in the temp directories predates this process, so
+             | no running job owns it — a previous run was killed mid-compile.
+             | Repeated hourly so a long-lived server doesn't accumulate the
+             | debris of jobs that died to a crash rather than an error.
+             */
+            sweepTempArtifacts();
+            setInterval(sweepTempArtifacts, 60 * 60 * 1000).unref();
         });
 
     } catch (error) {
