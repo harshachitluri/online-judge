@@ -17,8 +17,6 @@
 #
 # How to start:
 #   1. Build images first (Dockerfile → Docker Image):
-#         make build
-#      OR manually:
 #         docker build -f backend/Dockerfile.runner -t codejudge-runner .
 #         docker build -f backend/Dockerfile       -t codejudge-backend .
 #

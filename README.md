@@ -47,8 +47,7 @@ A full-stack online judge platform for practicing coding problems — write, run
 │       ├── config/        # Brand/navigation config (module names, routes, sidebar groups)
 │       ├── lib/            # Formatting, domain vocabulary, motion presets
 │       └── styles/        # Design tokens + per-area stylesheets
-├── docker-compose.yml   # MongoDB + backend orchestration
-└── Makefile             # Convenience commands for building/running the Docker stack
+└── docker-compose.yml   # MongoDB + backend orchestration
 ```
 
 ## Getting Started
@@ -56,7 +55,8 @@ A full-stack online judge platform for practicing coding problems — write, run
 ### Prerequisites
 
 - Node.js 18+
-- Docker & Docker Compose (required for code execution and running via containers)
+- MongoDB — either a local install or an Atlas connection string in `MONGO_URI`
+- Docker & Docker Compose — optional for development (set `DOCKER_ENABLED=false` and submissions run directly on the host), required for sandboxed execution in production
 - A Google Cloud OAuth 2.0 Client ID (for Google Sign-In) and a Gemini API key (for the AI Assistant) — both optional; the app degrades gracefully without them
 
 ### Environment Variables
@@ -94,34 +94,39 @@ REACT_APP_GOOGLE_CLIENT_ID=<same client ID as backend>
 
 For Google Sign-In to work, add `http://localhost:3000` (and your production URL later) to the Client ID's **Authorized JavaScript origins** in Google Cloud Console.
 
-### Run with Docker Compose (recommended)
+### Run locally (development)
 
-```bash
-make build   # builds the runner + backend images
-docker compose up -d
-```
-
-This starts MongoDB and the backend API, with the backend able to spawn isolated runner containers for code execution.
-
-### Run manually (development)
-
-Backend:
+Two terminals. Backend first — the frontend expects the API to be up.
 
 ```bash
 cd backend
 npm install
-npm run dev
+npm run dev      # nodemon on http://localhost:5001
 ```
-
-Frontend:
 
 ```bash
 cd frontend
 npm install
-npm start
+npm start        # http://localhost:3000
 ```
 
-The frontend runs on `http://localhost:3000` and proxies API calls to the backend.
+With `DOCKER_ENABLED=false` in `backend/.env`, submissions compile and run
+directly on the host — fast, no image builds, and fine for development. It is
+not a sandbox, so don't point it at untrusted code.
+
+### Run with Docker Compose
+
+For the sandboxed execution path, build the two images and bring the stack up:
+
+```bash
+docker build -f backend/Dockerfile.runner -t codejudge-runner .
+docker build -f backend/Dockerfile       -t codejudge-backend ./backend
+docker compose up -d
+```
+
+This starts MongoDB and the backend API, with the backend able to spawn isolated
+runner containers (no network, memory cap, PID limit, read-only filesystem) for
+each submission. The frontend still runs with `npm start`.
 
 ## License
 
