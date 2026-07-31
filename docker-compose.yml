@@ -82,3 +82,33 @@ services:
       # Source and compiled binaries, shared with the runner containers by
       # bind mount. Paired with HOST_TEMP_PATH above.
       - ./backend/src/temp:/app/src/temp
+
+  # TLS termination + static frontend, as a container rather than an OS
+  # package — Caddy's own Alpine image runs identically on Ubuntu, Amazon
+  # Linux, or anything else with Docker, which an `apt`/`dnf` install does
+  # not (Amazon Linux 2023 in particular has no Caddy package at all).
+  caddy:
+    image: caddy:2-alpine
+    container_name: codejudge-caddy
+    restart: unless-stopped
+    depends_on:
+      - backend
+
+    ports:
+      # The only two ports this stack exposes to the internet.
+      - "80:80"
+      - "443:443"
+
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./frontend/build:/srv/codejudge/frontend/build:ro
+      # Certificates and Caddy's own state. Named volumes, not bind mounts —
+      # losing the cert on every `docker compose down` would mean re-issuing
+      # from Let's Encrypt on every redeploy, which their rate limits do not
+      # take kindly to.
+      - caddy_data:/data
+      - caddy_config:/config
+
+volumes:
+  caddy_data:
+  caddy_config:

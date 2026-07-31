@@ -11,25 +11,29 @@
 #   · the A record for this domain already points at this server, and
 #   · ports 80 and 443 are reachable from the internet (ACME uses both).
 #
+# Runs as the `caddy` service in docker-compose.yml, on the same Docker
+# network as `backend` — which is why the proxy target below is the service
+# name, not 127.0.0.1. Docker Compose's built-in DNS resolves "backend" to
+# that container's address; localhost from inside this container would only
+# ever mean this container.
+#
 # Usage:
 #   1. Replace codejudge.example.com below with your real domain.
 #   2. Build the frontend:  cd frontend && npm run build
-#   3. caddy run --config /path/to/Caddyfile
-#      (or copy to /etc/caddy/Caddyfile and `systemctl reload caddy`)
+#   3. docker compose up -d
 # =============================================================================
 
-codejudge.example.com {
+codejudge.me, www.codejudge.me {
 	# --- API -----------------------------------------------------------
 	# Matched before the SPA fallback below, so /api/* never falls through
-	# to index.html. The backend is published on loopback only (see
-	# docker-compose.yml) — it is not reachable from outside this box.
+	# to index.html.
 	handle /api/* {
-		reverse_proxy 127.0.0.1:5001
+		reverse_proxy backend:5001
 	}
 
 	# Health endpoint, for uptime monitoring that shouldn't wake the SPA.
 	handle /healthz {
-		reverse_proxy 127.0.0.1:5001
+		reverse_proxy backend:5001
 	}
 
 	# --- Static SPA ----------------------------------------------------
