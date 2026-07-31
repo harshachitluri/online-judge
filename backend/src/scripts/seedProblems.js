@@ -1010,6 +1010,18 @@ const seedDatabase = async () => {
     let admin = await User.findOne({ email: "admin@codejudge.com" });
 
     if (!admin) {
+        // In production this must be set explicitly — "admin123" as a
+        // public-facing admin password is a standing open door. Locally it
+        // still falls back, so a fresh dev checkout keeps working untouched.
+        if (!process.env.SEED_ADMIN_PASSWORD && process.env.NODE_ENV === "production") {
+            console.error(
+                "Refusing to seed a default admin in production without SEED_ADMIN_PASSWORD set.\n" +
+                "Set it in the environment, or skip seeding an admin and create one with " +
+                "src/scripts/makeAdmin.js after registering normally."
+            );
+            process.exit(1);
+        }
+
         const adminPassword = process.env.SEED_ADMIN_PASSWORD || "admin123";
 
         admin = await User.create({

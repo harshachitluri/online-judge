@@ -27,6 +27,17 @@ const errorHandler = require("./middleware/errorMiddleware");
 
 const app = express();
 
+/*
+ | In production this sits behind Caddy, which terminates TLS and proxies to
+ | this process over localhost. Without `trust proxy`, every request appears
+ | to originate from Caddy's own address — req.ip is wrong, the rate
+ | limiters below bucket every visitor together, and `secure` cookies can
+ | misbehave. `1` trusts exactly one hop, matching a single reverse proxy.
+ */
+if (process.env.TRUST_PROXY === "true") {
+    app.set("trust proxy", 1);
+}
+
 /* ── CORS ───────────────────────────────────────────────────────────── */
 
 const allowedOrigins = (process.env.CORS_ORIGIN || "http://localhost:3000")
@@ -59,6 +70,17 @@ app.use(mongoSanitize());
 app.get("/", (req, res) => {
     res.json({ message: "Online Judge API Running...", version: "1.0.0" });
 });
+
+// Unauthenticated, no rate limit, no DB round-trip — this is what a load
+// balancer or uptime monitor should poll, not "/".
+app.get("/healthz", (req, res) => {
+    res.status(200).json({ status: "ok" });
+});
+
+/* ── Rate limiting ──────────────────────────────────────────────────── */
+// Route-specific limiters (auth, AI, run) are declared on those routers;
+// this is the floor everything else falls back to.
+app.use("/api", require("./middleware/rateLimiters").standard);
 
 /* ── API Routes ─────────────────────────────────────────────────────── */
 

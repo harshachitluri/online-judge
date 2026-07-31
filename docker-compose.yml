@@ -1,88 +1,79 @@
-# =============================================================
-# CodeJudge — docker-compose
-# =============================================================
-# Port Mapping (from your notes, Image 1):
+# =============================================================================
+# CodeJudge — docker compose
+# =============================================================================
+# MongoDB is NOT a service here. The database lives in MongoDB Atlas, which
+# means: nothing to expose on 27017, no root password sitting in this file,
+# and backups handled by someone else. MONGO_URI in .env points at it.
 #
-#   Our System (local)  ←→  Container
-#   ─────────────────       ──────────
-#   localhost:5001      ←→  backend:5001   (API + Judge Worker)
-#   localhost:27017     ←→  mongo:27017    (MongoDB)
+# Build the images first (both targets come from the single root Dockerfile):
+#   docker build --target runner  -t codejudge-runner  .
+#   docker build --target backend -t codejudge-backend .
 #
-# "Whatever running on container port, it should reflect in my local port"
-#
-# Security (from your notes, Images 3 & 4):
-#   User code is ISOLATED inside codejudge-runner containers.
-#   Backend gets access to Docker socket to spawn those containers.
-#   Runner containers have: no network, memory cap, PID limit, read-only FS.
-#
-# How to start:
-#   1. Build images first (Dockerfile → Docker Image):
-#         docker build -f backend/Dockerfile.runner -t codejudge-runner .
-#         docker build -f backend/Dockerfile       -t codejudge-backend .
-#
-#   2. Start all services:
-#         docker compose up -d
-# =============================================================
-
-version: "3.9"
-
-networks:
-  codejudge-net:
-    driver: bridge
-
-volumes:
-  mongo-data:         # MongoDB persistent storage
+# Then:
+#   docker compose up -d
+# =============================================================================
 
 services:
 
-  # ── MongoDB ─────────────────────────────────────────────────────
-  mongo:
-    image: mongo:7
-    container_name: codejudge-mongo
-    restart: unless-stopped
-    networks:
-      - codejudge-net
-    volumes:
-      - mongo-data:/data/db
-    environment:
-      MONGO_INITDB_ROOT_USERNAME: ${MONGO_ROOT_USER:-admin}
-      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASS:-secret}
-    ports:
-      # Port Mapping: local:27017 ←→ container:27017
-      - "27017:27017"
-    healthcheck:
-      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
-  # ── Backend (Node.js API + Judge Worker) ────────────────────────
   backend:
-    image: codejudge-backend:latest   # built from backend/Dockerfile
+    image: codejudge-backend:latest
     container_name: codejudge-backend
     restart: unless-stopped
-    networks:
-      - codejudge-net
-    depends_on:
-      mongo:
-        condition: service_healthy    # wait for Mongo to be ready
+
     ports:
-      # Port Mapping: local:5001 ←→ container:5001
-      - "${PORT:-5001}:5001"
+      # Bound to loopback only — Caddy terminates TLS on 443 and proxies
+      # here. Publishing 0.0.0.0:5001 would put the plain-HTTP API on the
+      # public internet alongside the HTTPS one.
+      - "127.0.0.1:${PORT:-5001}:5001"
+
     environment:
-      NODE_ENV:           production
-      PORT:               5001
-      MONGO_URI:          mongodb://${MONGO_ROOT_USER:-admin}:${MONGO_ROOT_PASS:-secret}@mongo:27017/codejudge?authSource=admin
-      JWT_SECRET:         ${JWT_SECRET:?JWT_SECRET must be set}
-      CORS_ORIGIN:        ${CORS_ORIGIN:-http://localhost:3000}
-      # Docker execution — code runs in isolated runner containers
-      DOCKER_ENABLED:     "true"
+      NODE_ENV:            production
+      PORT:                5001
+
+      # Atlas connection string — required, no default worth guessing.
+      MONGO_URI:           ${MONGO_URI:?MONGO_URI must be set}
+      JWT_SECRET:          ${JWT_SECRET:?JWT_SECRET must be set}
+      CORS_ORIGIN:         ${CORS_ORIGIN:-http://localhost:3000}
+
+      # Sits behind Caddy, so req.ip must come from X-Forwarded-For or every
+      # visitor shares one rate-limit bucket.
+      TRUST_PROXY:         "true"
+
+      # Untrusted code runs in throwaway runner containers.
+      DOCKER_ENABLED:      "true"
       DOCKER_RUNNER_IMAGE: codejudge-runner:latest
-      DOCKER_MEMORY:      "256m"
-      DOCKER_CPUS:        "0.5"
-      DOCKER_PIDS_LIMIT:  "50"
+      DOCKER_MEMORY:       ${DOCKER_MEMORY:-256m}
+      DOCKER_CPUS:         ${DOCKER_CPUS:-0.5}
+      DOCKER_PIDS_LIMIT:   ${DOCKER_PIDS_LIMIT:-50}
+
+      # Concurrent judge jobs. Each one can hold DOCKER_MEMORY, so on a
+      # 1GB box this wants to be 2, not the default 5.
+      MAX_CONCURRENT_JOBS: ${MAX_CONCURRENT_JOBS:-2}
+
+      # Where ./backend/src/temp actually lives on the host. The backend
+      # passes bind-mount paths to the *host's* Docker daemon when it spawns
+      # runner containers; without this it would pass its own container
+      # paths, which the daemon can't resolve. Must match the bind mount
+      # below. See toHostPath() in executeInDocker.js.
+      HOST_TEMP_PATH:      ${PWD}/backend/src/temp
+
+      # Email + AI. Optional — the app degrades honestly without them.
+      FRONTEND_URL:        ${FRONTEND_URL:-}
+      SMTP_HOST:           ${SMTP_HOST:-}
+      SMTP_PORT:           ${SMTP_PORT:-587}
+      SMTP_USER:           ${SMTP_USER:-}
+      SMTP_PASS:           ${SMTP_PASS:-}
+      SMTP_FROM:           ${SMTP_FROM:-}
+      GEMINI_API_KEY:      ${GEMINI_API_KEY:-}
+      GEMINI_MODEL:        ${GEMINI_MODEL:-gemini-2.0-flash}
+      GOOGLE_CLIENT_ID:    ${GOOGLE_CLIENT_ID:-}
+
     volumes:
-      # Docker socket — backend spawns runner containers via this
+      # The backend spawns sibling runner containers through this socket.
+      # It is effectively root on the host — the single biggest reason the
+      # runner image is locked down as hard as it is.
       - /var/run/docker.sock:/var/run/docker.sock
-      # Temp code files — runner containers mount code from here
+
+      # Source and compiled binaries, shared with the runner containers by
+      # bind mount. Paired with HOST_TEMP_PATH above.
       - ./backend/src/temp:/app/src/temp

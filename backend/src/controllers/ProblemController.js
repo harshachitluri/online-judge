@@ -30,15 +30,22 @@ const createProblem = asyncHandler(async (req, res) => {
         topicCategory
     } = req.body;
 
-    if (
-        !title ||
-        !description ||
-        !difficulty ||
-        !functionName
-    ) {
+    // Naming the missing fields, rather than just "something is missing" —
+    // functionName in particular is easy to omit from an API call, and a
+    // generic message sends the caller hunting through the whole payload.
+    const missing = Object.entries({
+        title,
+        description,
+        difficulty,
+        functionName
+    })
+        .filter(([, value]) => !value)
+        .map(([field]) => field);
+
+    if (missing.length > 0) {
         throw new ApiError(
             400,
-            "Required fields are missing."
+            `Required field${missing.length === 1 ? "" : "s"} missing: ${missing.join(", ")}.`
         );
     }
 

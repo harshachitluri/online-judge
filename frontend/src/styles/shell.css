@@ -728,7 +728,18 @@
 
 :root[data-theme="light"] .aurora__orb { opacity: .16; }
 
-/* Everything above the ambient layer. */
+/*
+ | Everything above the ambient layer.
+ |
+ | .topnav is deliberately NOT in this list. It sets its own position
+ | (sticky) and its own z-index further up, and because this rule appears
+ | later in the file with equal specificity it silently overrode both:
+ | the bar stopped being sticky, and it dropped to z-index 1 — the same
+ | layer as .page, which then won on DOM order. That is what put the
+ | account dropdown behind the page and let .page-header__row swallow
+ | clicks meant for the menu.
+ |
+ | Its own rule already puts it above the aurora, so it needs nothing here.
+ */
 .page,
-.topnav,
 .landing > * { position: relative; z-index: var(--z-base); }

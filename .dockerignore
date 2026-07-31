@@ -1,0 +1,29 @@
+# Root .dockerignore — the build context is now the repo root (both targets
+# in the single Dockerfile COPY from here), so this replaces backend/.dockerignore.
+
+node_modules
+**/node_modules
+
+.env
+.env.*
+!.env.example
+
+backend/src/temp/
+
+*.log
+npm-debug.log*
+
+.DS_Store
+Thumbs.db
+
+.git
+.gitignore
+
+.vscode
+.idea
+
+coverage/
+
+# The frontend is built separately (Caddy serves the static output) and
+# isn't part of either Docker target.
+frontend/

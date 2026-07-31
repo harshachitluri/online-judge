@@ -40,6 +40,60 @@ if (!fs.existsSync(outputDir)) {
     fs.mkdirSync(outputDir, { recursive: true });
 }
 
+/*
+ | The compile step bind-mounts this directory into the runner container
+ | and writes the compiled binary into it as the runner's own user — not
+ | root, and not whatever uid the backend container runs as. Those two
+ | processes share nothing but this directory, so 0o777 (not a narrower
+ | ACL) is the only way both sides can reliably write to it regardless of
+ | which uids either container happens to run as.
+ |
+ | This is deliberately NOT a security boundary: the binaries that land here
+ | are later executed inside their own locked-down container, with no
+ | network, a memory cap and a pids limit. World-writable on a directory
+ | that holds nothing but disposable, soon-deleted compiler output is a
+ | non-issue next to that.
+ */
+fs.chmodSync(outputDir, 0o777);
+
+/*
+ |--------------------------------------------------------------------------
+ | Container path → host path
+ |--------------------------------------------------------------------------
+ | Every `docker run -v <src>:<dst>` below is interpreted by the *daemon*,
+ | which runs on the host — never inside this process's own filesystem.
+ |
+ | That distinction is invisible when the backend runs directly on the host
+ | (the two paths are the same), and fatal once the backend is itself
+ | containerised: this process sees /app/src/temp/..., the daemon looks for
+ | that path on the host, finds nothing, and either refuses the mount (macOS)
+ | or silently binds an empty directory (Linux) — so the compiler is handed
+ | an empty file and every submission fails.
+ |
+ | HOST_TEMP_PATH tells us where this container's temp directory actually
+ | lives on the host. docker-compose sets it alongside the bind mount that
+ | creates the situation in the first place. Unset (bare-metal dev), the
+ | translation is a no-op.
+ */
+const CONTAINER_TEMP = path.resolve(__dirname, "../temp");
+const HOST_TEMP = process.env.HOST_TEMP_PATH
+    ? path.resolve(process.env.HOST_TEMP_PATH)
+    : null;
+
+const toHostPath = (targetPath) => {
+    const abs = path.resolve(targetPath);
+
+    if (!HOST_TEMP) return abs;
+
+    const relative = path.relative(CONTAINER_TEMP, abs);
+
+    // Outside the temp tree entirely — nothing to translate, and guessing
+    // would be worse than passing it through untouched.
+    if (relative.startsWith("..") || path.isAbsolute(relative)) return abs;
+
+    return path.join(HOST_TEMP, relative);
+};
+
 /* ── Security flag builder ───────────────────────────────────────── */
 
 /**
@@ -162,8 +216,8 @@ const compileInContainer = (dockerArgs) => {
  */
 const compileDockerCpp = async (filePath, jobId) => {
 
-    const absFilePath  = path.resolve(filePath);
-    const absOutputDir = path.resolve(outputDir);
+    const absFilePath  = toHostPath(filePath);
+    const absOutputDir = toHostPath(outputDir);
 
     // Mount: source (read-only) + output dir (writable for the binary)
     const args = [
@@ -197,7 +251,7 @@ const compileDockerCpp = async (filePath, jobId) => {
  */
 const runDockerCpp = (binaryPath, input = "", timeLimitMs = 5000) => {
 
-    const absBinaryPath  = path.resolve(binaryPath);
+    const absBinaryPath  = toHostPath(binaryPath);
     const timeLimitSecs  = Math.ceil(timeLimitMs / 1000);
     const nodeTimeout    = timeLimitMs + 5000; // buffer for Docker overhead
 
@@ -230,7 +284,7 @@ const runDockerCpp = (binaryPath, input = "", timeLimitMs = 5000) => {
 const compileDockerJava = async (javaFilePath) => {
 
     const classDir    = path.dirname(javaFilePath);
-    const absClassDir = path.resolve(classDir);
+    const absClassDir = toHostPath(classDir);
 
     const args = [
         "--rm",
@@ -260,7 +314,7 @@ const compileDockerJava = async (javaFilePath) => {
  */
 const runDockerJava = (classDir, input = "", timeLimitMs = 5000) => {
 
-    const absClassDir = path.resolve(classDir);
+    const absClassDir = toHostPath(classDir);
     const timeLimitSecs = Math.ceil(timeLimitMs / 1000);
     const nodeTimeout   = timeLimitMs + 8000; // JVM startup is slower
 
@@ -297,7 +351,7 @@ const runDockerJava = (classDir, input = "", timeLimitMs = 5000) => {
  */
 const runDockerPython = (filePath, input = "", timeLimitMs = 10000) => {
 
-    const absFilePath   = path.resolve(filePath);
+    const absFilePath   = toHostPath(filePath);
     const timeLimitSecs = Math.ceil(timeLimitMs / 1000);
     const nodeTimeout   = timeLimitMs + 5000;
 

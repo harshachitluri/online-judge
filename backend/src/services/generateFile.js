@@ -45,6 +45,14 @@ const generateFile = (language, code) => {
         const jobDir = path.join(codeDir, jobId);
         fs.mkdirSync(jobDir, { recursive: true });
 
+        // In Docker mode this directory is bind-mounted into the runner
+        // container, where javac writes Main.class as the runner's own
+        // user — a different uid than whatever owns this directory on the
+        // host. 0o777 is what lets both sides write regardless of uid; see
+        // the matching comment in executeInDocker.js for why that's fine
+        // for a directory that only ever holds disposable compiler output.
+        fs.chmodSync(jobDir, 0o777);
+
         const filePath = path.join(jobDir, "Main.java");
         fs.writeFileSync(filePath, code);
 
