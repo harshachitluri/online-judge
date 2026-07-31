@@ -166,18 +166,16 @@ const Vault = () => {
     const totalPages = data?.totalPages || 1;
 
     /*
-     | Which problems the user has solved. The progress endpoint reports
-     | aggregate counts rather than ids, so this is derived per-difficulty
-     | rather than per-problem — the card marks "solved" only when a
-     | difficulty is fully cleared, which is the strongest claim this data
-     | supports. Anything finer would be a guess.
+     | Which problems the user has solved, by id. This used to be derived
+     | per-difficulty — a card was marked solved only when its entire
+     | difficulty was cleared — because the progress endpoint returned counts
+     | and not ids. It now returns the ids too, so the tick means what it
+     | says instead of approximating.
      */
-    const clearedDifficulties = useMemo(() => {
-        const rows = progress.data?.byDifficulty || [];
-        return new Set(
-            rows.filter((r) => r.total > 0 && r.solved === r.total).map((r) => r.difficulty)
-        );
-    }, [progress.data]);
+    const solvedIds = useMemo(
+        () => new Set(progress.data?.solvedProblemIds || []),
+        [progress.data]
+    );
 
     /* Tags present on this page, for the quick-filter row. */
     const visibleTags = useMemo(() => {
@@ -392,7 +390,7 @@ const Vault = () => {
                         <ProblemCard
                             key={problem._id}
                             problem={problem}
-                            solved={clearedDifficulties.has(problem.difficulty)}
+                            solved={solvedIds.has(String(problem._id))}
                         />
                     ))}
                 </motion.div>

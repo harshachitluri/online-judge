@@ -378,23 +378,84 @@
     color: var(--text-secondary);
 }
 
-.track__list { display: flex; flex-direction: column; gap: 2px; overflow: hidden; }
+/* ── Track detail (one topic / one company) ─────────────────────────────── */
 
-.track__problem {
+.track-detail__back {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    color: var(--text-muted);
+    font-size: var(--fs-2xs);
+    font-weight: var(--fw-semi);
+    letter-spacing: var(--tracking-wide);
+    text-transform: uppercase;
+}
+.track-detail__back:hover { color: var(--text-primary); }
+
+.track-detail__summary { display: flex; flex-direction: column; gap: var(--sp-5); }
+.track-detail__stat { display: flex; align-items: flex-start; gap: var(--sp-4); }
+
+.track-detail__toolbar {
     display: flex;
     align-items: center;
     gap: var(--sp-3);
-    padding: var(--sp-2) var(--sp-3);
-    border-radius: var(--r-sm);
+    flex-wrap: wrap;
+}
+
+.track-detail__list {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.track-detail__row {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-3);
+    padding: var(--sp-3) var(--sp-4);
+    border-radius: var(--r-md);
+    border: 1px solid transparent;
     color: var(--text-secondary);
     font-size: var(--fs-sm);
-    transition: background var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out);
+    transition: background var(--dur-fast) var(--ease-out),
+                border-color var(--dur-fast) var(--ease-out),
+                color var(--dur-fast) var(--ease-out);
 }
-.track__problem:hover { background: var(--surface-2); color: var(--text-primary); }
-.track__problem svg:last-child { opacity: 0; transition: opacity var(--dur-fast); }
-.track__problem:hover svg:last-child { opacity: .6; }
 
-.track__num { color: var(--text-faint); font-size: var(--fs-xs); }
+.track-detail__row:hover {
+    background: var(--surface-2);
+    border-color: var(--border);
+    color: var(--text-primary);
+}
+
+/* The arrow only earns its place on the row being considered. */
+.track-detail__row > svg:last-child { opacity: 0; transition: opacity var(--dur-fast); }
+.track-detail__row:hover > svg:last-child { opacity: .6; }
+
+.track-detail__mark {
+    display: grid;
+    place-items: center;
+    width: 24px;
+    flex: none;
+    color: var(--text-faint);
+}
+
+.track-detail__row--solved .track-detail__mark { color: var(--status-good); }
+
+.track-detail__num { font-size: var(--fs-xs); }
+
+.track-detail__title { flex: 1; min-width: 0; font-weight: var(--fw-medium); }
+
+/* Tags are context, not content — they drop out before the title does. */
+.track-detail__tags { display: flex; gap: var(--sp-1); flex: none; }
+
+@media (max-width: 700px) {
+    .track-detail__tags { display: none; }
+    .track-detail__row { padding: var(--sp-3); }
+}
 
 /* ── Ascendancy ─────────────────────────────────────────────────────────── */
 

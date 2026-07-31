@@ -377,7 +377,13 @@ const getProgress = asyncHandler(async (req, res) => {
             },
             byDifficulty,
             topics: byTopicRaw.map(shape("topic")),
-            companies: byCompanyRaw.map(shape("company"))
+            companies: byCompanyRaw.map(shape("company")),
+            // The ids themselves, so a list of problems can tick the solved
+            // ones individually. The aggregates above only say how many were
+            // solved in a group, never which — which left the UI marking a
+            // problem solved on the strength of its whole difficulty being
+            // cleared. This costs nothing extra: solvedIds is already loaded.
+            solvedProblemIds: solvedIds.map(String)
         })
     );
 

@@ -38,6 +38,8 @@ const Vault = lazy(() => import("./pages/Vault"));
 const Forge = lazy(() => import("./pages/Forge"));
 const Pathways = lazy(() => import("./pages/Tracks").then((m) => ({ default: m.Pathways })));
 const Constellations = lazy(() => import("./pages/Tracks").then((m) => ({ default: m.Constellations })));
+const TopicDetail = lazy(() => import("./pages/TrackDetail").then((m) => ({ default: m.TopicDetail })));
+const CompanyDetail = lazy(() => import("./pages/TrackDetail").then((m) => ({ default: m.CompanyDetail })));
 const Arena = lazy(() => import("./pages/Arena"));
 const Ascendancy = lazy(() => import("./pages/Ascendancy"));
 const Telemetry = lazy(() => import("./pages/Telemetry"));
@@ -155,6 +157,16 @@ const AnimatedRoutes = () => {
                         <Route
                             path={MODULE.constellations.path}
                             element={<AppLayout><PageTransition><Constellations /></PageTransition></AppLayout>}
+                        />
+
+                        {/* One topic / one company, opened from a card above. */}
+                        <Route
+                            path={`${MODULE.pathways.path}/:name`}
+                            element={<AppLayout><PageTransition><TopicDetail /></PageTransition></AppLayout>}
+                        />
+                        <Route
+                            path={`${MODULE.constellations.path}/:name`}
+                            element={<AppLayout><PageTransition><CompanyDetail /></PageTransition></AppLayout>}
                         />
                         <Route
                             path={MODULE.arena.path}

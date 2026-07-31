@@ -1,16 +1,15 @@
 import React, { useState, useMemo } from "react";
-import { Link } from "react-router-dom";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import * as Icons from "react-icons/lu";
 
-import { MODULE, forgePath } from "../config/brand";
+import { MODULE } from "../config/brand";
 import { fetchTopics, fetchCompanies } from "../services/judge";
 import { fetchProgress } from "../services/account";
 import { useAsync } from "../hooks";
 import { difficultyMeta, DIFFICULTY_ORDER } from "../lib/domain";
 import { number as fmtNumber } from "../lib/format";
 import {
-    Card, Button, Badge, DifficultyBadge, Input, ProgressBar,
+    Card, Button, Badge, Input, ProgressBar,
     SkeletonGrid, EmptyState, ErrorState, Segmented
 } from "../components/ui";
 import { PageHeader } from "../components/shell/AppShell";
@@ -28,7 +27,7 @@ import { staggerParent, riseChild } from "../lib/motion";
 
 /* ── Shared track card ─────────────────────────────────────────────────── */
 
-const TrackCard = ({ track, progress, expanded, onToggle, accentIcon: Icon }) => {
+const TrackCard = ({ track, progress, to, accentIcon: Icon }) => {
     const solved = progress?.solved ?? 0;
     const total = progress?.total ?? track.count;
     const pct = total > 0 ? Math.round((solved / total) * 100) : 0;
@@ -103,42 +102,18 @@ const TrackCard = ({ track, progress, expanded, onToggle, accentIcon: Icon }) =>
                     </div>
                 </div>
 
+                {/* A page, not an accordion. Unrolling a hundred problems
+                    inside a grid cell reflows every card around it and gives
+                    the reader no way to search within what just appeared. */}
                 <Button
-                    variant="ghost"
+                    variant="secondary"
                     size="sm"
-                    onClick={onToggle}
-                    trailingIcon={expanded ? Icons.LuChevronUp : Icons.LuChevronDown}
-                    aria-expanded={expanded}
+                    to={to}
+                    trailingIcon={Icons.LuArrowRight}
+                    block
                 >
-                    {expanded ? "Hide problems" : `Show ${track.count} problems`}
+                    Open {track.count === 1 ? "1 problem" : `${fmtNumber(track.count)} problems`}
                 </Button>
-
-                <AnimatePresence initial={false}>
-                    {expanded && (
-                        <motion.ul
-                            className="track__list"
-                            initial={{ opacity: 0, height: 0 }}
-                            animate={{ opacity: 1, height: "auto" }}
-                            exit={{ opacity: 0, height: 0 }}
-                            transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
-                        >
-                            {track.problems.map((problem, i) => (
-                                <li key={problem._id}>
-                                    <Link to={forgePath(problem.slug)} className="track__problem">
-                                        <span className="track__num tnum">
-                                            {String(i + 1).padStart(2, "0")}
-                                        </span>
-                                        <span className="truncate" style={{ flex: 1 }}>
-                                            {problem.title}
-                                        </span>
-                                        <DifficultyBadge level={problem.difficulty} />
-                                        <Icons.LuArrowRight size={13} aria-hidden="true" />
-                                    </Link>
-                                </li>
-                            ))}
-                        </motion.ul>
-                    )}
-                </AnimatePresence>
             </Card>
         </motion.div>
     );
@@ -153,7 +128,6 @@ const TrackPage = ({
     const progress = useAsync(fetchProgress, []);
 
     const [query, setQuery] = useState("");
-    const [expanded, setExpanded] = useState(null);
     const [sort, setSort] = useState("progress");
 
     /* Progress rows keyed by track name, so a card can find its own row. */
@@ -276,10 +250,10 @@ const TrackPage = ({
                             key={track._id}
                             track={track}
                             progress={progressMap.get(track._id)}
-                            expanded={expanded === track._id}
-                            onToggle={() =>
-                                setExpanded((prev) => (prev === track._id ? null : track._id))
-                            }
+                            // encodeURIComponent, because a track name is free
+                            // text — "C++", "Goldman Sachs" and anything with a
+                            // slash in it all have to survive the round trip.
+                            to={`${module.path}/${encodeURIComponent(track._id)}`}
                             accentIcon={Icon}
                         />
                     ))}
