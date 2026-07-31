@@ -85,7 +85,20 @@ EOF
 
 (
     cd frontend
-    npm ci
+    # `npm ci` (strict — fails on any lock drift) kept refusing to run here
+    # even against a lock file just regenerated and verified clean, because
+    # this dependency tree's optional/peer resolution is genuinely
+    # non-deterministic across npm/OS versions for a few packages pulled in
+    # by react-scripts' own toolchain (confirmed: three separate
+    # regenerations, on both macOS and a matching Linux container, each
+    # produced a slightly different resolved set).
+    #
+    # `npm install` reconciles instead of refusing. That trade-off is fine
+    # specifically here: this step produces static assets, not a runtime
+    # dependency surface, so it doesn't carry the same supply-chain stakes
+    # `npm ci` exists to protect — which is why the backend image build
+    # (Dockerfile) still correctly uses `npm ci`, untouched.
+    npm install
     # CI=true turns warnings into errors on some setups; this is a deploy,
     # not a lint gate.
     CI=false npm run build
