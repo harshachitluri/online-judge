@@ -1,14 +1,14 @@
 import React, {
     useState, useEffect, useMemo, useRef, useCallback, Suspense, lazy
 } from "react";
-import { useParams, Link, useNavigate } from "react-router-dom";
+import { useParams, useSearchParams, Link, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import * as Icons from "react-icons/lu";
 
 import { MODULE } from "../config/brand";
 import {
     fetchProblemBySlug, fetchSampleTestCases, runCode,
-    createSubmission, pollSubmission, fetchMySubmissions
+    createSubmission, pollSubmission, fetchMySubmissions, fetchSubmission
 } from "../services/judge";
 import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
@@ -144,6 +144,7 @@ const renderStatement = (source = "") => {
 
 const Forge = () => {
     const { slug } = useParams();
+    const [params, setParams] = useSearchParams();
     const navigate = useNavigate();
 
     const { user } = useAuth();
@@ -205,6 +206,61 @@ const Forge = () => {
         const starter = problem.starterCode?.[language];
         setCode(starter || FALLBACK_STARTER[language] || "");
     }, [problem, language, code, setCode]);
+
+    /*
+     |--------------------------------------------------------------------------
+     | Restoring a past submission into the editor
+     |--------------------------------------------------------------------------
+     | ?submission=<id> loads that submission's source, so "open in editor"
+     | from the history means *this exact attempt*, not whatever draft happens
+     | to be sitting in localStorage for the problem.
+     |
+     | The language is switched to match first — a C++ submission restored
+     | while the editor is on Python would otherwise be judged as Python.
+     | Because setCode writes to the draft key for the *current* language, the
+     | write is deferred until `language` has caught up, or the source would
+     | land under the wrong key (the same class of bug as the stale-key one in
+     | useLocalStorage).
+     */
+    const restoreId = params.get("submission");
+    const restoredRef = useRef(null);
+
+    const restoreQuery = useAsync(
+        () => (restoreId ? fetchSubmission(restoreId) : Promise.resolve(null)),
+        [restoreId]
+    );
+
+    useEffect(() => {
+        const restored = restoreQuery.data;
+        if (!restored?.sourceCode || restoredRef.current === restoreId) return;
+
+        // Wait for the language switch to land before writing the source.
+        if (restored.language && language !== restored.language) {
+            if (languages.includes(restored.language)) setLanguage(restored.language);
+            return;
+        }
+
+        restoredRef.current = restoreId;
+        setCode(restored.sourceCode);
+
+        // Drop the param so a refresh doesn't clobber later edits with the
+        // old submission again.
+        params.delete("submission");
+        setParams(params, { replace: true });
+
+        toast.info("Submission restored", "The editor now holds that attempt's code.");
+    }, [restoreQuery.data, restoreId, language, languages, setCode, params, setParams, toast]);
+
+    /* Restoring from the Runs tab, where there's no navigation to hang the
+       query param on — set it and let the effect above do the work. */
+    const restoreSubmission = useCallback(
+        (id) => {
+            restoredRef.current = null;
+            params.set("submission", id);
+            setParams(params, { replace: true });
+        },
+        [params, setParams]
+    );
 
     /* ── Execution state ───────────────────────────────────────────────── */
 
@@ -510,6 +566,18 @@ const Forge = () => {
                                         <span className="runrow__when">
                                             {relativeTime(s.createdAt)}
                                         </span>
+                                        {/* Pull an earlier attempt back into the
+                                            editor — the common case being "that
+                                            one passed, what did I change?". */}
+                                        <Button
+                                            variant="ghost"
+                                            size="xs"
+                                            iconOnly
+                                            icon={Icons.LuRotateCcw}
+                                            onClick={() => restoreSubmission(s._id)}
+                                            title="Load this attempt into the editor"
+                                            aria-label={`Load the ${s.verdict} attempt from ${relativeTime(s.createdAt)} into the editor`}
+                                        />
                                     </li>
                                 ))}
                             </ul>

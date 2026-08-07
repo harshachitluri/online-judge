@@ -58,9 +58,12 @@ const SourceModal = ({ submissionId, onClose }) => {
                             Copy source
                         </Button>
                         {data.problemId?.slug && (
+                            /* Carries the submission id so the editor opens
+                               holding *this* attempt's source, rather than
+                               whatever draft is saved for the problem. */
                             <Button
                                 variant="primary"
-                                to={forgePath(data.problemId.slug)}
+                                to={`${forgePath(data.problemId.slug)}?submission=${data._id}`}
                                 trailingIcon={Icons.LuArrowRight}
                             >
                                 Open in editor
