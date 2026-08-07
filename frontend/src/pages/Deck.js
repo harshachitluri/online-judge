@@ -470,12 +470,14 @@ const Deck = () => {
                         <ul className="stack stack-2">
                             {recent.map((submission) => (
                                 <li key={submission._id}>
+                                    {/* Opens the submitted source, not the
+                                        editor. Linking to the problem showed
+                                        the user's *current draft* instead of
+                                        the code this row is reporting on —
+                                        which reads as the submission having
+                                        lost its code. */}
                                     <Link
-                                        to={
-                                            submission.problemId?.slug
-                                                ? forgePath(submission.problemId.slug)
-                                                : MODULE.chronicle.path
-                                        }
+                                        to={`${MODULE.chronicle.path}?submission=${submission._id}`}
                                         className="deck__row"
                                     >
                                         <VerdictBadge verdict={submission.verdict} short />

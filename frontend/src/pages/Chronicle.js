@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import * as Icons from "react-icons/lu";
 
 import { MODULE, forgePath } from "../config/brand";
@@ -119,7 +119,25 @@ const Chronicle = () => {
     const [page, setPage] = useState(1);
     const [verdict, setVerdict] = useState("");
     const [language, setLanguage] = useState("");
-    const [viewing, setViewing] = useState(null);
+
+    /*
+     | ?submission=<id> opens that submission's source straight away, so
+     | "recent submissions" elsewhere in the app can link to the code a user
+     | actually wrote rather than dropping them in the editor — where they'd
+     | see their current draft instead of what they submitted.
+     */
+    const [params, setParams] = useSearchParams();
+    const [viewing, setViewing] = useState(params.get("submission"));
+
+    // Clear the param once consumed, so a refresh or a back-navigation
+    // doesn't keep forcing the modal open.
+    const closeViewer = () => {
+        setViewing(null);
+        if (params.has("submission")) {
+            params.delete("submission");
+            setParams(params, { replace: true });
+        }
+    };
 
     const { data, loading, error, reload } = useAsync(
         () => fetchMySubmissions({ page, limit: PAGE_SIZE }),
@@ -365,7 +383,7 @@ const Chronicle = () => {
                 </nav>
             )}
 
-            <SourceModal submissionId={viewing} onClose={() => setViewing(null)} />
+            <SourceModal submissionId={viewing} onClose={closeViewer} />
         </div>
     );
 };
