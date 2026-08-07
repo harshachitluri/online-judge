@@ -1,6 +1,7 @@
 import React from "react";
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
+import { LuInfo } from "react-icons/lu";
 
 import { riseChild } from "../../lib/motion";
 
@@ -96,6 +97,7 @@ export const StatTile = ({
     label,
     value,
     sub,
+    hint,
     icon: Icon,
     accent = "var(--brand-violet)",
     delta,
@@ -108,7 +110,19 @@ export const StatTile = ({
     return (
         <motion.div className={`stat-tile ${className}`} variants={riseChild}>
             <div className="stat-tile__top">
-                <span className="stat-tile__label">{label}</span>
+                <span className="stat-tile__label">
+                    {label}
+                    {/* `hint` explains where a number comes from. A figure like
+                        "10 more to Intermediate" is a goal only if the rule
+                        behind it is discoverable; otherwise it reads as an
+                        arbitrary number. tabIndex so it is reachable by
+                        keyboard, not just hover. */}
+                    {hint && (
+                        <span className="stat-tile__hint" title={hint} tabIndex={0} role="note" aria-label={hint}>
+                            <LuInfo size={11} aria-hidden="true" />
+                        </span>
+                    )}
+                </span>
                 {Icon && (
                     <span className="stat-tile__icon" style={{ color: accent }} aria-hidden="true">
                         <Icon size={15} />

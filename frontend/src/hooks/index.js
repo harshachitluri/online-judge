@@ -1,5 +1,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 
+import { isEditorFocused } from "../lib/editorFocus";
+
 /*
  |==========================================================================
  | Shared hooks
@@ -93,16 +95,41 @@ export const useMediaQuery = (query) => {
 
 export const useIsMobile = () => useMediaQuery("(max-width: 860px)");
 
+const readStored = (key, fallback) => {
+    try {
+        const raw = localStorage.getItem(key);
+        return raw !== null ? JSON.parse(raw) : fallback;
+    } catch {
+        return fallback;
+    }
+};
+
 /** State mirrored into localStorage, tolerant of private-mode failures. */
 export const useLocalStorage = (key, initialValue) => {
-    const [value, setValue] = useState(() => {
-        try {
-            const raw = localStorage.getItem(key);
-            return raw !== null ? JSON.parse(raw) : initialValue;
-        } catch {
-            return initialValue;
-        }
-    });
+    const [value, setValue] = useState(() => readStored(key, initialValue));
+
+    // Held in a ref so a caller passing an object/array literal as the
+    // fallback doesn't retrigger the effect below on every render.
+    const initialRef = useRef(initialValue);
+    initialRef.current = initialValue;
+
+    /*
+     | Re-read whenever the key changes.
+     |
+     | useState's initializer runs once, on mount — so without this, a
+     | changed key kept returning the *previous* key's value. The Forge keys
+     | its draft by problem AND language, so switching language left the old
+     | language's source in the editor: the starter template never loaded,
+     | and the next edit saved that source under the new language's key,
+     | corrupting both drafts.
+     */
+    const keyRef = useRef(key);
+
+    useEffect(() => {
+        if (keyRef.current === key) return;
+        keyRef.current = key;
+        setValue(readStored(key, initialRef.current));
+    }, [key]);
 
     const set = useCallback(
         (next) => {
@@ -169,7 +196,13 @@ export const useHotkey = (combo, handler, { enabled = true, allowInInput = false
             if (!allowInInput) {
                 const el = event.target;
                 const tag = el?.tagName?.toLowerCase();
-                if (tag === "input" || tag === "textarea" || el?.isContentEditable) return;
+                if (tag === "input" || tag === "textarea" || tag === "select") return;
+                if (el?.isContentEditable) return;
+
+                // Monaco reports `body` as the target and hides its real
+                // input surface, so the tag check above never catches the
+                // code editor. See lib/editorFocus.js.
+                if (isEditorFocused()) return;
             }
 
             const mod = event.metaKey || event.ctrlKey;

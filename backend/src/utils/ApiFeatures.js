@@ -55,21 +55,46 @@ class ApiFeatures {
     }
 
     /**
-     * Full-text search. Uses $text so MongoDB can use the index defined on
+     * Full-text search. Uses $text so MongoDB can use the weighted index on
      * Problem.title + Problem.description instead of scanning with $regex.
+     *
+     * Quoting the term makes it a phrase match: unquoted, MongoDB treats
+     * "Two Sum" as "two OR sum" and returns every problem whose description
+     * mentions either word. The unquoted form is kept as a fallback so a
+     * phrase that matches nothing still returns near misses rather than an
+     * empty page.
      */
     search() {
 
-        const term = this.queryParams.search;
+        const term = String(this.queryParams.search || "").trim();
 
-        if (term && String(term).trim()) {
-            this.filterObject.$text = { $search: String(term).trim() };
+        if (term) {
+            this.searchTerm = term;
+            this.filterObject.$text = { $search: term };
         }
 
         return this;
     }
 
+    /** True when the caller searched, so the query needs textScore selected. */
+    get isTextSearch() {
+        return Boolean(this.searchTerm);
+    }
+
     sort() {
+
+        /*
+         | Relevance beats recency when searching. Without this the weighted
+         | index still computes a score and then the results get sorted by
+         | createdAt anyway — which is how searching "Two Sum" returned it
+         | somewhere below a dozen unrelated problems.
+         |
+         | An explicit ?sort= still wins: someone who asked for A→Z means it.
+         */
+        if (this.isTextSearch && !this.queryParams.sort) {
+            this.sortObject = { score: { $meta: "textScore" } };
+            return this;
+        }
 
         this.sortObject = SORT_OPTIONS[this.queryParams.sort] || SORT_OPTIONS.newest;
 

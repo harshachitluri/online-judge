@@ -77,9 +77,12 @@ const ProblemCard = ({ problem, solved }) => {
                 </div>
 
                 <div className="problem-card__foot">
-                    <span title="Acceptance rate">
+                    {/* An untouched problem reads as an invitation rather than
+                        a dead stat — "0% accepted" would be actively
+                        discouraging, and "No attempts" merely flat. */}
+                    <span title={acceptance === null ? "Nobody has solved this yet" : "Acceptance rate"}>
                         <Icons.LuCircleCheck size={12} aria-hidden="true" />
-                        {acceptance === null ? "No attempts" : `${acceptance}% accepted`}
+                        {acceptance === null ? "Be the first to solve" : `${acceptance}% accepted`}
                     </span>
                     <span title="Total submissions">
                         <Icons.LuUsers size={12} aria-hidden="true" />

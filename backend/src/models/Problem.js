@@ -195,11 +195,28 @@ const problemSchema = new mongoose.Schema(
 |--------------------------------------------------------------------------
 */
 
-// Full Text Search
-problemSchema.index({
-  title: "text",
-  description: "text",
-});
+/*
+ | Full-text search.
+ |
+ | The weights are the point. Unweighted, a description that happens to use
+ | the words "two" and "sum" scored the same as the problem actually titled
+ | "Two Sum" — so searching for a problem by its exact name buried it below
+ | a dozen unrelated ones. Title matches are what people are almost always
+ | after, so the title is weighted an order of magnitude higher.
+ |
+ | ApiFeatures sorts by textScore whenever a search term is present; without
+ | that these weights would be computed and then ignored.
+ */
+problemSchema.index(
+  {
+    title: "text",
+    description: "text",
+  },
+  {
+    weights: { title: 10, description: 1 },
+    name: "problem_text_search",
+  }
+);
 
 // Faster filtering — isPublished leads because every public query filters on it
 problemSchema.index({

@@ -112,8 +112,16 @@ const getProblems = asyncHandler(async (req, res) => {
         filterObj.isPublished = true;
     }
 
+    // Sorting by { $meta: "textScore" } requires the score to be projected —
+    // MongoDB rejects the sort otherwise.
+    const query = Problem.find(filterObj);
+
+    if (features.isTextSearch) {
+        query.select({ score: { $meta: "textScore" } });
+    }
+
     const [problems, totalProblems] = await Promise.all([
-        Problem.find(filterObj)
+        query
             .sort(features.sortObject)
             .skip(features.skip)
             .limit(features.limit),

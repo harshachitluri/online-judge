@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import * as Icons from "react-icons/lu";
 
-import { MODULE, forgePath, tierFor } from "../config/brand";
+import { MODULE, forgePath, tierFor, TIERS } from "../config/brand";
 import { useAuth } from "../context/AuthContext";
 import { useAsync } from "../hooks";
 import { fetchAnalytics, fetchProgress } from "../services/account";
@@ -71,6 +71,16 @@ const Deck = () => {
     const languagesUsed = analytics.data?.languageDistribution?.length || 0;
 
     const tier = tierFor(stats?.problemsSolved || 0);
+
+    /* Built from TIERS rather than hardcoded, so the explanation can't drift
+       out of step with the thresholds it describes. */
+    const tierRuleText = useMemo(
+        () =>
+            "Tiers are based on unique problems solved — " +
+            TIERS.map((t) => `${t.label} ${t.min}+`).join(", ") +
+            ".",
+        []
+    );
 
     const badges = useMemo(
         () =>
@@ -239,6 +249,7 @@ const Deck = () => {
                             ? `${tier.toNext} more to ${tier.next.label}`
                             : "Highest tier reached"
                     }
+                    hint={tierRuleText}
                     accent={tier.current.accent}
                 />
             </motion.div>

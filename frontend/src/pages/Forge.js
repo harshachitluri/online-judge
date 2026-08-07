@@ -18,6 +18,7 @@ import {
     languageMeta, runnableOnly, FALLBACK_STARTER, verdictMeta
 } from "../lib/domain";
 import { errorMessage } from "../api/client";
+import { setEditorFocused, resetEditorFocus } from "../lib/editorFocus";
 import { duration, relativeTime, number as fmtNumber } from "../lib/format";
 import {
     Button, Badge, DifficultyBadge, VerdictBadge, Select, Tabs,
@@ -293,6 +294,21 @@ const Forge = () => {
             pollAbort.current = null;
         }
     }, [code, language, problem, toast, historyQuery]);
+
+    /*
+     | Report the editor's focus to the global hotkey layer, so single-key
+     | shortcuts ("/" opens the command palette) don't steal keystrokes meant
+     | for the code. Monaco's own events are the only reliable signal here —
+     | see lib/editorFocus.js for why the DOM can't be inspected instead.
+     */
+    const handleEditorMount = useCallback((editor) => {
+        editor.onDidFocusEditorText(() => setEditorFocused(true));
+        editor.onDidBlurEditorText(() => setEditorFocused(false));
+    }, []);
+
+    // A editor torn down while focused never fires its blur, which would
+    // leave the flag stuck on and disable "/" everywhere else in the app.
+    useEffect(() => resetEditorFocus, []);
 
     const onReset = () => {
         const starter = problem?.starterCode?.[language];
@@ -577,6 +593,7 @@ const Forge = () => {
                         value={code ?? ""}
                         onChange={(value) => setCode(value ?? "")}
                         beforeMount={defineThemes}
+                        onMount={handleEditorMount}
                         options={{
                             fontSize: editorFontSize,
                             fontFamily: "var(--font-mono)",
